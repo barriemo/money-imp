@@ -4,6 +4,7 @@ use App\Http\Controllers\BillingQueueController;
 use App\Http\Controllers\BillingReviewController;
 use App\Http\Controllers\ChaseQueueController;
 use App\Http\Controllers\DebtorController;
+use App\Http\Controllers\ImportInboxController;
 use App\Http\Controllers\Integrations\FreeAgentController;
 use App\Http\Controllers\MoneyOutController;
 use App\Http\Controllers\MoneyOutImportController;
@@ -148,3 +149,8 @@ Route::middleware('auth')->group(function (): void {
         [MoneyOutImportController::class, 'cancel']
     )->name('money-out.import.cancel');
 });
+
+Route::middleware('auth')->get(
+    '/imports',
+    [ImportInboxController::class, 'index']
+)->name('imports.index');
