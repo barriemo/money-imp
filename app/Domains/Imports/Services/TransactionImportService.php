@@ -35,26 +35,48 @@ class TransactionImportService
         ]);
 
         try {
+            $occurrences = [];
+
             foreach ($parser->parse($path) as $index => $source) {
                 $batch->increment('rows_seen');
 
-                $hash = hash(
+                $identity = implode('|', [
+                    $account->id,
+                    $source->date->toDateString(),
+                    number_format(
+                        $source->amount,
+                        2,
+                        '.',
+                        ''
+                    ),
+                    strtolower(
+                        trim($source->description)
+                    ),
+                    $source->reference ?? '',
+                ]);
+
+                $baseHash = hash(
                     'sha256',
-                    implode('|', [
-                        $account->id,
-                        $source->date->toDateString(),
-                        number_format(
-                            $source->amount,
-                            2,
-                            '.',
-                            ''
-                        ),
-                        strtolower(
-                            trim($source->description)
-                        ),
-                        $source->reference ?? '',
-                    ])
+                    $identity
                 );
+
+                $occurrences[$baseHash] =
+                    ($occurrences[$baseHash] ?? 0) + 1;
+
+                $occurrence =
+                    $occurrences[$baseHash];
+
+                /*
+                 * Preserve the existing hash for the first
+                 * occurrence so previously imported data still
+                 * deduplicates correctly.
+                 */
+                $hash = $occurrence === 1
+                    ? $baseHash
+                    : hash(
+                        'sha256',
+                        $identity.'|'.$occurrence
+                    );
 
                 if (
                     BankTransaction::query()
