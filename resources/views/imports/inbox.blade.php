@@ -118,6 +118,65 @@
             color: #bbb;
         }
 
+
+        .drop-zone {
+            margin: 28px 0;
+            padding: 34px;
+            border: 2px dashed #555;
+            border-radius: 16px;
+            background: #161616;
+            text-align: center;
+        }
+
+        .drop-zone:hover {
+            border-color: #aaa;
+        }
+
+        .drop-zone h2 {
+            margin-top: 0;
+            font-size: 26px;
+        }
+
+        .drop-zone input[type="file"] {
+            display: block;
+            width: 100%;
+            margin: 22px 0;
+            padding: 24px;
+            border: 1px solid #333;
+            border-radius: 12px;
+            background: #111;
+            color: #ddd;
+        }
+
+        .drop-zone button {
+            padding: 14px 22px;
+            border: 0;
+            border-radius: 9px;
+            background: #fff;
+            color: #111;
+            font: inherit;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .success {
+            margin: 20px 0;
+            padding: 14px 16px;
+            border: 1px solid #285d34;
+            border-radius: 10px;
+            background: #132419;
+            color: #9ce9ac;
+        }
+
+        .errors {
+            margin: 20px 0;
+            padding: 14px 16px;
+            border: 1px solid #713434;
+            border-radius: 10px;
+            background: #2a1616;
+            color: #ffaaaa;
+        }
+
         @media (max-width: 850px) {
             .summary {
                 grid-template-columns: 1fr 1fr;
@@ -141,6 +200,51 @@
     <p class="muted">
         Every statement and transaction import in one place.
     </p>
+
+
+    @if (session('success'))
+        <div class="success">
+            {{ session('success') }}
+        </div>
+    @endif
+
+    @if ($errors->any())
+        <div class="errors">
+            @foreach ($errors->all() as $error)
+                <div>{{ $error }}</div>
+            @endforeach
+        </div>
+    @endif
+
+    <section class="drop-zone">
+        <h2>Drop anything here</h2>
+
+        <p class="muted">
+            Bank statements, ZIP files, PDFs, CSVs,
+            20i, Name.com, GoDaddy, EUKhost and more.
+            Money Imp will work out what they are.
+        </p>
+
+        <form
+            method="POST"
+            action="{{ route('imports.drop') }}"
+            enctype="multipart/form-data"
+        >
+            @csrf
+
+            <input
+                type="file"
+                name="files[]"
+                multiple
+                accept=".pdf,.csv,.txt,.zip"
+                required
+            >
+
+            <button type="submit">
+                Feed Money Imp
+            </button>
+        </form>
+    </section>
 
     <section class="summary">
         <div class="stat">

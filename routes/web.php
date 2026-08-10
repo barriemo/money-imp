@@ -10,6 +10,7 @@ use App\Http\Controllers\Integrations\FreeAgentController;
 use App\Http\Controllers\MoneyOutController;
 use App\Http\Controllers\MoneyOutImportController;
 use App\Http\Controllers\ReconciliationInboxController;
+use App\Http\Controllers\UniversalImportController;
 use App\Http\Controllers\WorkLogController;
 use App\Http\Controllers\WorkReviewController;
 use Illuminate\Support\Facades\Route;
@@ -187,3 +188,8 @@ Route::middleware('auth')->post(
     '/work-review/client/{client}/invoice-draft',
     [WorkReviewController::class, 'createInvoiceDraft']
 )->name('work-review.invoice-draft');
+
+Route::middleware('auth')->post(
+    '/imports/drop',
+    [UniversalImportController::class, 'store']
+)->name('imports.drop');

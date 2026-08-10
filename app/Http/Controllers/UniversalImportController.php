@@ -1,0 +1,71 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Domains\Imports\Services\UniversalImportService;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+
+class UniversalImportController extends Controller
+{
+    public function store(
+        Request $request,
+        UniversalImportService $imports
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'files' => [
+                'required',
+                'array',
+                'max:30',
+            ],
+
+            'files.*' => [
+                'required',
+                'file',
+                'mimes:pdf,csv,txt,zip',
+                'max:51200',
+            ],
+        ]);
+
+        $results = [];
+
+        foreach ($validated['files'] as $file) {
+            $results = [
+                ...$results,
+                ...$imports->ingest(
+                    $file,
+                    $request->user()->id
+                ),
+            ];
+        }
+
+        $statements = collect($results)
+            ->where('type', 'statement')
+            ->count();
+
+        $supplierInvoices = collect($results)
+            ->where(
+                'type',
+                'supplier_invoice'
+            )
+            ->count();
+
+        $unknown = collect($results)
+            ->where('type', 'unknown')
+            ->count();
+
+        return redirect()
+            ->route('imports.index')
+            ->with(
+                'success',
+                count($results)
+                .' file(s) received. '
+                .$statements
+                .' statement(s), '
+                .$supplierInvoices
+                .' supplier invoice(s), '
+                .$unknown
+                .' need review.'
+            );
+    }
+}
