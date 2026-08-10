@@ -3,6 +3,7 @@
 use App\Http\Controllers\BillingQueueController;
 use App\Http\Controllers\BillingReviewController;
 use App\Http\Controllers\ChaseQueueController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DebtorController;
 use App\Http\Controllers\ImportInboxController;
 use App\Http\Controllers\Integrations\FreeAgentController;
@@ -13,9 +14,10 @@ use App\Http\Controllers\WorkLogController;
 use App\Http\Controllers\WorkReviewController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware('auth')->name('dashboard');
+Route::middleware('auth')->get(
+    '/dashboard',
+    [DashboardController::class, 'index']
+)->name('dashboard');
 
 Route::get('/', function () {
     return view('welcome');

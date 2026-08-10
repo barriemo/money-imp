@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Domains\Billing\Services\BulkInvoiceSendService;
 use App\Models\AccountingInvoice;
 use App\Models\BillingReview;
-use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -14,9 +13,6 @@ class BillingReviewController extends Controller
 {
     public function index(): View
     {
-        $start = CarbonImmutable::create(2026, 7, 1)->startOfMonth();
-        $end = $start->endOfMonth();
-
         $invoices = AccountingInvoice::query()
             ->with([
                 'client',
@@ -24,10 +20,6 @@ class BillingReviewController extends Controller
                 'items',
             ])
             ->where('status', 'draft')
-            ->whereBetween('invoice_date', [
-                $start->toDateString(),
-                $end->toDateString(),
-            ])
             ->orderBy('invoice_date')
             ->get();
 

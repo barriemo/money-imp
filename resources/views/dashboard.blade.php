@@ -11,9 +11,7 @@
     <title>Money Imp</title>
 
     <style>
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         body {
             margin: 0;
@@ -27,9 +25,14 @@
         }
 
         main {
-            max-width: 1100px;
+            max-width: 1150px;
             margin: auto;
             padding: 48px 24px 80px;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
         }
 
         h1 {
@@ -39,52 +42,114 @@
         }
 
         .intro {
-            margin: 6px 0 34px;
+            margin: 6px 0 32px;
             color: #888;
             font-size: 18px;
         }
 
+        .metrics {
+            display: grid;
+            grid-template-columns:
+                repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .metric,
+        .action,
+        .nav-card {
+            background: #181818;
+            border: 1px solid #292929;
+            border-radius: 14px;
+        }
+
+        .metric {
+            padding: 20px;
+        }
+
+        .metric strong {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 28px;
+        }
+
+        .metric span {
+            color: #888;
+        }
+
         .section-title {
             margin-top: 38px;
-            color: #888;
+            margin-bottom: 12px;
+            color: #777;
             font-size: 13px;
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 1px;
         }
 
-        .grid {
+        .actions {
             display: grid;
-            grid-template-columns:
-                repeat(3, 1fr);
-            gap: 14px;
-            margin-top: 12px;
+            gap: 10px;
         }
 
-        .card {
-            display: block;
-            min-height: 145px;
-            padding: 22px;
-            border-radius: 14px;
-            border: 1px solid #292929;
-            background: #181818;
-            color: inherit;
-            text-decoration: none;
+        .action {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            padding: 18px;
         }
 
-        .card:hover {
+        .action:hover,
+        .nav-card:hover {
             border-color: #555;
         }
 
-        .card strong {
+        .action strong {
             display: block;
-            margin-bottom: 8px;
-            font-size: 21px;
+            font-size: 18px;
         }
 
-        .card span {
-            color: #8d8d8d;
-            line-height: 1.5;
+        .action span {
+            color: #888;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            flex: 0 0 10px;
+            margin-top: 7px;
+            border-radius: 50%;
+        }
+
+        .red { background: #e85a5a; }
+        .orange { background: #e9a23b; }
+        .green { background: #67c77a; }
+
+        .action-left {
+            display: flex;
+            gap: 12px;
+        }
+
+        .nav {
+            display: grid;
+            grid-template-columns:
+                repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .nav-card {
+            min-height: 120px;
+            padding: 20px;
+        }
+
+        .nav-card strong {
+            display: block;
+            margin-bottom: 7px;
+            font-size: 18px;
+        }
+
+        .nav-card span {
+            color: #888;
+            line-height: 1.4;
         }
 
         .primary {
@@ -97,8 +162,16 @@
         }
 
         @media (max-width: 800px) {
-            .grid {
+            .metrics {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .nav {
                 grid-template-columns: 1fr;
+            }
+
+            .action {
+                display: block;
             }
         }
     </style>
@@ -106,166 +179,242 @@
 
 <body>
 <main>
-    <h1>Money Imp</h1>
+    <h1>
+        Good afternoon, {{ auth()->user()->name }}.
+    </h1>
 
     <p class="intro">
-        Your money. Minus the bullshit.
+        Here's where the money is right now.
     </p>
+
+    <section class="metrics">
+        <div class="metric">
+            <strong>
+                £{{ number_format(
+                    $brief['cash']['bank'],
+                    2
+                ) }}
+            </strong>
+
+            <span>Cash in bank</span>
+        </div>
+
+        <div class="metric">
+            <strong>
+                £{{ number_format(
+                    $brief['receivables']['outstanding'],
+                    2
+                ) }}
+            </strong>
+
+            <span>Outstanding sales</span>
+        </div>
+
+        <div class="metric">
+            <strong>
+                £{{ number_format(
+                    $brief['work']['review_value']
+                    + $brief['work']['ready_value'],
+                    2
+                ) }}
+            </strong>
+
+            <span>Potential unbilled work</span>
+        </div>
+
+        <div class="metric">
+            <strong>
+                {{ $brief['billing']['draft_count'] }}
+            </strong>
+
+            <span>Invoice drafts</span>
+        </div>
+    </section>
+
+    <div class="section-title">
+        Needs your attention
+    </div>
+
+    <section class="actions">
+        @forelse ($brief['actions'] as $action)
+            <a
+                class="action"
+                href="{{ route($action['route']) }}"
+            >
+                <div class="action-left">
+                    <div
+                        class="dot {{ $action['level'] }}"
+                    ></div>
+
+                    <div>
+                        <strong>
+                            {{ $action['title'] }}
+                        </strong>
+
+                        <span>
+                            {{ $action['detail'] }}
+                        </span>
+                    </div>
+                </div>
+
+                <strong>→</strong>
+            </a>
+        @empty
+            <div class="action">
+                <div class="action-left">
+                    <div class="dot green"></div>
+
+                    <div>
+                        <strong>Nothing urgent.</strong>
+
+                        <span>
+                            Money Imp has nothing
+                            shouting for attention.
+                        </span>
+                    </div>
+                </div>
+            </div>
+        @endforelse
+    </section>
 
     <div class="section-title">
         Everyday
     </div>
 
-    <section class="grid">
+    <section class="nav">
         <a
-            class="card primary"
+            class="nav-card primary"
             href="{{ route('work-log.index') }}"
         >
             <strong>Log Work</strong>
 
             <span>
-                Client. Time. What you did.
-                Ten seconds and done.
+                Client. Time. Description.
+                Done.
             </span>
         </a>
 
         <a
-            class="card"
+            class="nav-card"
+            href="{{ route('work-review.index') }}"
+        >
+            <strong>
+                Unbilled Work
+                @if ($brief['work']['review_count'] > 0)
+                    ({{ $brief['work']['review_count'] }})
+                @endif
+            </strong>
+
+            <span>
+                Decide what becomes revenue.
+            </span>
+        </a>
+
+        <a
+            class="nav-card"
             href="{{ route('reconciliation.index') }}"
         >
             <strong>Reconciliation</strong>
 
             <span>
-                Match incoming money to clients
-                and invoices.
+                Match incoming cash to invoices.
             </span>
         </a>
 
         <a
-            class="card"
-            href="{{ route('money-out.index') }}"
-        >
-            <strong>Money Out</strong>
-
-            <span>
-                Review spending and teach
-                supplier attribution.
-            </span>
-        </a>
-    </section>
-
-    <div class="section-title">
-        Billing & cash
-    </div>
-
-    <section class="grid">
-        <a
-            class="card primary"
-            href="{{ route('work-review.index') }}"
-        >
-            <strong>Unbilled Work</strong>
-
-            <span>
-                Review logged work.
-                Invoice it, include it,
-                or deliberately write it off.
-            </span>
-        </a>
-
-        <a
-            class="card"
+            class="nav-card"
             href="{{ route('billing.index') }}"
         >
             <strong>Billing</strong>
 
             <span>
-                Find missing monthly billing
-                and create drafts.
+                Find what we've forgotten
+                to invoice.
             </span>
         </a>
 
         <a
-            class="card"
+            class="nav-card"
             href="{{ route('billing.review') }}"
         >
-            <strong>Draft Review</strong>
+            <strong>
+                Draft Review
+                @if (
+                    $brief['billing']['awaiting_approval']
+                    > 0
+                )
+                    ({{ $brief['billing']['awaiting_approval'] }})
+                @endif
+            </strong>
 
             <span>
-                Approve and send FreeAgent
-                invoices.
+                Approve and send invoices.
             </span>
         </a>
 
         <a
-            class="card"
+            class="nav-card"
             href="{{ route('debtors.index') }}"
         >
             <strong>Who Owes Us Money?</strong>
 
             <span>
-                Outstanding invoices and
-                overdue balances.
+                £{{ number_format(
+                    $brief['receivables']['outstanding'],
+                    2
+                ) }} outstanding.
             </span>
         </a>
 
         <a
-            class="card"
-            href="{{ route('chase.index') }}"
+            class="nav-card"
+            href="{{ route('money-out.index') }}"
         >
-            <strong>Chase Queue</strong>
+            <strong>
+                Money Out
+                @if (
+                    $brief['money_out']['review_count']
+                    > 0
+                )
+                    ({{ $brief['money_out']['review_count'] }})
+                @endif
+            </strong>
 
             <span>
-                Decide who needs chased today.
+                Review spending and attribution.
             </span>
         </a>
-    </section>
 
-    <div class="section-title">
-        Imports
-    </div>
-
-    <section class="grid">
         <a
-            class="card"
+            class="nav-card"
             href="{{ route('imports.index') }}"
         >
             <strong>Import Inbox</strong>
 
             <span>
-                All statement imports and
-                their status.
+                Statements and import history.
             </span>
         </a>
 
         <a
-            class="card"
-            href="{{ route('money-out.import.index') }}"
+            class="nav-card"
+            href="{{ route('chase.index') }}"
         >
-            <strong>Import Statement</strong>
+            <strong>
+                Chase Debtors
+                @if (
+                    $brief['receivables']['overdue_count']
+                    > 0
+                )
+                    ({{ $brief['receivables']['overdue_count'] }})
+                @endif
+            </strong>
 
             <span>
-                Drop in a bank or card
-                statement.
-            </span>
-        </a>
-    </section>
-
-    <div class="section-title">
-        Connections
-    </div>
-
-    <section class="grid">
-        <a
-            class="card"
-            href="{{ route(
-                'integrations.freeagent.health'
-            ) }}"
-        >
-            <strong>FreeAgent</strong>
-
-            <span>
-                Connection health and accounting
-                system of record.
+                £{{ number_format(
+                    $brief['receivables']['overdue_value'],
+                    2
+                ) }} overdue.
             </span>
         </a>
     </section>
