@@ -2,11 +2,31 @@
 
 namespace App\Models;
 
-use Database\Factories\SyncFailureFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SyncFailure extends MoneyImpModel
 {
-    /** @use HasFactory<SyncFailureFactory> */
-    use HasFactory;
+    protected function casts(): array
+    {
+        return [
+            'context' => 'array',
+            'payload' => 'array',
+            'resolved_at' => 'datetime',
+        ];
+    }
+
+    public function syncRun(): BelongsTo
+    {
+        return $this->belongsTo(SyncRun::class);
+    }
+
+    public function externalRecord(): BelongsTo
+    {
+        return $this->belongsTo(ExternalRecord::class);
+    }
+
+    public function resolvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'resolved_by');
+    }
 }
