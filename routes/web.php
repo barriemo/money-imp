@@ -193,3 +193,11 @@ Route::middleware('auth')->post(
     '/imports/drop',
     [UniversalImportController::class, 'store']
 )->name('imports.drop');
+
+Route::middleware('auth')->post(
+    '/imports/process-statements',
+    [
+        UniversalImportController::class,
+        'processStatements',
+    ]
+)->name('imports.process-statements');

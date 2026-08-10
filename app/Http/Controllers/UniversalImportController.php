@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Imports\Services\PendingStatementImportService;
 use App\Domains\Imports\Services\UniversalImportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -66,6 +67,31 @@ class UniversalImportController extends Controller
                 .' supplier invoice(s), '
                 .$unknown
                 .' need review.'
+            );
+    }
+
+    public function processStatements(
+        Request $request,
+        PendingStatementImportService $imports
+    ): RedirectResponse {
+        $summary = $imports->process(
+            $request->user()->id
+        );
+
+        return redirect()
+            ->route('imports.index')
+            ->with(
+                'success',
+                $summary['processed']
+                .' statement(s) processed. '
+                .$summary['imported_rows']
+                .' transaction(s) imported. '
+                .$summary['duplicates']
+                .' duplicate(s) skipped. '
+                .$summary['needs_review']
+                .' still need review. '
+                .$summary['failed']
+                .' failed.'
             );
     }
 }

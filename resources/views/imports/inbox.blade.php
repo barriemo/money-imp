@@ -246,6 +246,23 @@
         </form>
     </section>
 
+
+    <form
+        method="POST"
+        action="{{ route('imports.process-statements') }}"
+        style="margin-bottom: 28px;"
+    >
+        @csrf
+
+        <button
+            type="submit"
+            class="button"
+            style="border: 0; cursor: pointer;"
+        >
+            Import All Recognised Statements
+        </button>
+    </form>
+
     <section class="summary">
         <div class="stat">
             <strong>{{ $summary['total'] }}</strong>
