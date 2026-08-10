@@ -61,10 +61,18 @@ class FreeAgentController extends Controller
             'company'
         );
 
+        $company = $response['company'] ?? [];
+
         return response([
             'status' => 'connected',
             'provider' => 'freeagent',
-            'company' => $response['company'] ?? $response,
+            'company' => [
+                'id' => $company['id'] ?? null,
+                'name' => $company['name'] ?? null,
+                'subdomain' => $company['subdomain'] ?? null,
+                'currency' => $company['currency'] ?? null,
+                'country' => $company['country'] ?? null,
+            ],
         ]);
     }
 }
