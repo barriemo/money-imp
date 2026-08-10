@@ -2,11 +2,22 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Provider extends Model
+class Provider extends MoneyImpModel
 {
-    /** @use HasFactory<\Database\Factories\ProviderFactory> */
-    use HasFactory;
+    use SoftDeletes;
+
+    protected function casts(): array
+    {
+        return [
+            'metadata' => 'array',
+        ];
+    }
+
+    public function assets(): HasMany
+    {
+        return $this->hasMany(ProviderAsset::class);
+    }
 }

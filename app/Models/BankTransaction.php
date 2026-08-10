@@ -2,11 +2,45 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class BankTransaction extends Model
+class BankTransaction extends MoneyImpModel
 {
-    /** @use HasFactory<\Database\Factories\BankTransactionFactory> */
-    use HasFactory;
+    protected function casts(): array
+    {
+        return [
+            'transaction_date' => 'date',
+            'amount' => 'decimal:2',
+            'match_confidence' => 'decimal:2',
+            'matched_at' => 'datetime',
+            'raw_payload' => 'array',
+            'metadata' => 'array',
+        ];
+    }
+
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class);
+    }
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    public function explanations(): HasMany
+    {
+        return $this->hasMany(BankTransactionExplanation::class);
+    }
+
+    public function paymentAllocations(): HasMany
+    {
+        return $this->hasMany(PaymentAllocation::class);
+    }
+
+    public function matchedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'matched_by');
+    }
 }

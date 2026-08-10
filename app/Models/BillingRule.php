@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
+use Database\Factories\BillingRuleFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class BillingRule extends Model
+class BillingRule extends MoneyImpModel
 {
-    /** @use HasFactory<\Database\Factories\BillingRuleFactory> */
+    /** @use HasFactory<BillingRuleFactory> */
     use HasFactory;
 }

@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
+use Database\Factories\SyncFailureFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class SyncFailure extends Model
+class SyncFailure extends MoneyImpModel
 {
-    /** @use HasFactory<\Database\Factories\SyncFailureFactory> */
+    /** @use HasFactory<SyncFailureFactory> */
     use HasFactory;
 }

@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
+use Database\Factories\SyncRunFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class SyncRun extends Model
+class SyncRun extends MoneyImpModel
 {
-    /** @use HasFactory<\Database\Factories\SyncRunFactory> */
+    /** @use HasFactory<SyncRunFactory> */
     use HasFactory;
 }

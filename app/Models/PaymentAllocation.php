@@ -2,11 +2,32 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class PaymentAllocation extends Model
+class PaymentAllocation extends MoneyImpModel
 {
-    /** @use HasFactory<\Database\Factories\PaymentAllocationFactory> */
-    use HasFactory;
+    protected function casts(): array
+    {
+        return [
+            'amount' => 'decimal:2',
+            'confidence' => 'decimal:2',
+            'approved_at' => 'datetime',
+            'metadata' => 'array',
+        ];
+    }
+
+    public function transaction(): BelongsTo
+    {
+        return $this->belongsTo(BankTransaction::class, 'bank_transaction_id');
+    }
+
+    public function invoice(): BelongsTo
+    {
+        return $this->belongsTo(AccountingInvoice::class, 'accounting_invoice_id');
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
 }

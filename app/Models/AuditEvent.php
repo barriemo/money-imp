@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
+use Database\Factories\AuditEventFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class AuditEvent extends Model
+class AuditEvent extends MoneyImpModel
 {
-    /** @use HasFactory<\Database\Factories\AuditEventFactory> */
+    /** @use HasFactory<AuditEventFactory> */
     use HasFactory;
 }

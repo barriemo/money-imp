@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
+use Database\Factories\BankTransactionExplanationFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class BankTransactionExplanation extends Model
+class BankTransactionExplanation extends MoneyImpModel
 {
-    /** @use HasFactory<\Database\Factories\BankTransactionExplanationFactory> */
+    /** @use HasFactory<BankTransactionExplanationFactory> */
     use HasFactory;
 }

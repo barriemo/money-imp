@@ -2,11 +2,37 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
-class ProviderAsset extends Model
+class ProviderAsset extends MoneyImpModel
 {
-    /** @use HasFactory<\Database\Factories\ProviderAssetFactory> */
-    use HasFactory;
+    use SoftDeletes;
+
+    protected function casts(): array
+    {
+        return [
+            'current_cost' => 'decimal:2',
+            'started_on' => 'date',
+            'renews_on' => 'date',
+            'ends_on' => 'date',
+            'metadata' => 'array',
+        ];
+    }
+
+    public function provider(): BelongsTo
+    {
+        return $this->belongsTo(Provider::class);
+    }
+
+    public function clientAllocations(): HasMany
+    {
+        return $this->hasMany(ClientAssetAllocation::class);
+    }
+
+    public function costAllocations()
+    {
+        return $this->morphMany(CostAllocation::class, 'cost_allocatable');
+    }
 }

@@ -2,11 +2,22 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Supplier extends Model
+class Supplier extends MoneyImpModel
 {
-    /** @use HasFactory<\Database\Factories\SupplierFactory> */
-    use HasFactory;
+    use SoftDeletes;
+
+    protected function casts(): array
+    {
+        return [
+            'metadata' => 'array',
+        ];
+    }
+
+    public function bills(): HasMany
+    {
+        return $this->hasMany(AccountingBill::class);
+    }
 }
