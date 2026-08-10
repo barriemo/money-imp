@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'freeagent' => [
+        'client_id' => env('FREEAGENT_CLIENT_ID'),
+        'client_secret' => env('FREEAGENT_CLIENT_SECRET'),
+        'redirect_uri' => env('FREEAGENT_REDIRECT_URI'),
+        'base_url' => env('FREEAGENT_BASE_URL', 'https://api.freeagent.com/v2'),
+    ],
+
 ];
