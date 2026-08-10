@@ -6,6 +6,7 @@ use App\Http\Controllers\ChaseQueueController;
 use App\Http\Controllers\DebtorController;
 use App\Http\Controllers\Integrations\FreeAgentController;
 use App\Http\Controllers\MoneyOutController;
+use App\Http\Controllers\MoneyOutImportController;
 use App\Http\Controllers\ReconciliationInboxController;
 use Illuminate\Support\Facades\Route;
 
@@ -124,4 +125,26 @@ Route::middleware('auth')->group(function (): void {
         '/money-out/{row}/review',
         [MoneyOutController::class, 'review']
     )->name('money-out.review');
+});
+
+Route::middleware('auth')->group(function (): void {
+    Route::get(
+        '/money-out/import',
+        [MoneyOutImportController::class, 'index']
+    )->name('money-out.import.index');
+
+    Route::post(
+        '/money-out/import/preview',
+        [MoneyOutImportController::class, 'preview']
+    )->name('money-out.import.preview');
+
+    Route::post(
+        '/money-out/import/confirm',
+        [MoneyOutImportController::class, 'import']
+    )->name('money-out.import.confirm');
+
+    Route::post(
+        '/money-out/import/cancel',
+        [MoneyOutImportController::class, 'cancel']
+    )->name('money-out.import.cancel');
 });

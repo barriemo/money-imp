@@ -149,6 +149,12 @@
         Teach Money Imp where every pound went.
     </p>
 
+    <p>
+        <a href="{{ route('money-out.import.index') }}">
+            Import statement →
+        </a>
+    </p>
+
     @if (session('success'))
         <div class="flash">
             {{ session('success') }}
