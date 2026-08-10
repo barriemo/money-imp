@@ -160,6 +160,19 @@
 
     <section class="grid">
         <a
+            class="card primary"
+            href="{{ route('work-review.index') }}"
+        >
+            <strong>Unbilled Work</strong>
+
+            <span>
+                Review logged work.
+                Invoice it, include it,
+                or deliberately write it off.
+            </span>
+        </a>
+
+        <a
             class="card"
             href="{{ route('billing.index') }}"
         >

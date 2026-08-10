@@ -23,6 +23,9 @@ class WorkLog extends Model
         'rate_snapshot',
         'commercial_value',
         'commercial_notes',
+        'reviewed_by',
+        'reviewed_at',
+        'accounting_invoice_id',
     ];
 
     protected function casts(): array
@@ -31,6 +34,7 @@ class WorkLog extends Model
             'performed_at' => 'date',
             'rate_snapshot' => 'decimal:2',
             'commercial_value' => 'decimal:2',
+            'reviewed_at' => 'datetime',
         ];
     }
 
@@ -42,5 +46,20 @@ class WorkLog extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'reviewed_by'
+        );
+    }
+
+    public function accountingInvoice(): BelongsTo
+    {
+        return $this->belongsTo(
+            AccountingInvoice::class
+        );
     }
 }

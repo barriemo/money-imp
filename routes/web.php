@@ -10,6 +10,7 @@ use App\Http\Controllers\MoneyOutController;
 use App\Http\Controllers\MoneyOutImportController;
 use App\Http\Controllers\ReconciliationInboxController;
 use App\Http\Controllers\WorkLogController;
+use App\Http\Controllers\WorkReviewController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/dashboard', function () {
@@ -166,4 +167,16 @@ Route::middleware('auth')->group(function (): void {
         '/work-log',
         [WorkLogController::class, 'store']
     )->name('work-log.store');
+});
+
+Route::middleware('auth')->group(function (): void {
+    Route::get(
+        '/work-review',
+        [WorkReviewController::class, 'index']
+    )->name('work-review.index');
+
+    Route::post(
+        '/work-review/{workLog}',
+        [WorkReviewController::class, 'update']
+    )->name('work-review.update');
 });
