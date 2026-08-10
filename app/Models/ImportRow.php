@@ -33,12 +33,12 @@ class ImportRow extends MoneyImpModel
         );
     }
 
-    public function supplier(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
     }
 
-    public function category(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function category(): BelongsTo
     {
         return $this->belongsTo(
             ExpenseCategory::class,
@@ -46,18 +46,16 @@ class ImportRow extends MoneyImpModel
         );
     }
 
-    public function client(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
     }
 
-    public function reviewer(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function reviewer(): BelongsTo
     {
         return $this->belongsTo(
             User::class,
             'reviewed_by'
         );
     }
-
-
 }

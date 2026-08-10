@@ -118,8 +118,8 @@ class MoneyOutLearningTest extends TestCase
         );
 
         $this->assertSame(
-            '100.00',
-            $row->classification_confidence
+            100.0,
+            (float) $row->classification_confidence
         );
     }
 }

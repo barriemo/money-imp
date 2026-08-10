@@ -5,6 +5,7 @@ use App\Http\Controllers\BillingReviewController;
 use App\Http\Controllers\ChaseQueueController;
 use App\Http\Controllers\DebtorController;
 use App\Http\Controllers\Integrations\FreeAgentController;
+use App\Http\Controllers\MoneyOutController;
 use App\Http\Controllers\ReconciliationInboxController;
 use Illuminate\Support\Facades\Route;
 
@@ -111,16 +112,16 @@ Route::middleware('auth')->group(function (): void {
 Route::middleware('auth')->group(function (): void {
     Route::get(
         '/money-out',
-        [\App\Http\Controllers\MoneyOutController::class, 'index']
+        [MoneyOutController::class, 'index']
     )->name('money-out.index');
 
     Route::post(
         '/money-out/categorise',
-        [\App\Http\Controllers\MoneyOutController::class, 'categorise']
+        [MoneyOutController::class, 'categorise']
     )->name('money-out.categorise');
 
     Route::post(
         '/money-out/{row}/review',
-        [\App\Http\Controllers\MoneyOutController::class, 'review']
+        [MoneyOutController::class, 'review']
     )->name('money-out.review');
 });

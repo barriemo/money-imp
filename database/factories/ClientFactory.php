@@ -10,15 +10,13 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class ClientFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
+    protected $model = Client::class;
+
     public function definition(): array
     {
         return [
-            //
+            'name' => fake()->unique()->company(),
+            'status' => 'active',
         ];
     }
 }
