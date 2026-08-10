@@ -12,6 +12,8 @@ class ImportRow extends MoneyImpModel
             'transaction_date' => 'date',
             'raw_payload' => 'array',
             'normalised_payload' => 'array',
+            'remember_classification' => 'boolean',
+            'reviewed_at' => 'datetime',
         ];
     }
 
@@ -30,4 +32,32 @@ class ImportRow extends MoneyImpModel
             'bank_transaction_id'
         );
     }
+
+    public function supplier(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
+    public function category(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(
+            ExpenseCategory::class,
+            'expense_category_id'
+        );
+    }
+
+    public function client(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    public function reviewer(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'reviewed_by'
+        );
+    }
+
+
 }

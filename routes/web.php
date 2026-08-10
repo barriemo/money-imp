@@ -107,3 +107,20 @@ Route::middleware('auth')->group(function (): void {
         [BillingReviewController::class, 'approveBulk']
     )->name('billing.review.approve-bulk');
 });
+
+Route::middleware('auth')->group(function (): void {
+    Route::get(
+        '/money-out',
+        [\App\Http\Controllers\MoneyOutController::class, 'index']
+    )->name('money-out.index');
+
+    Route::post(
+        '/money-out/categorise',
+        [\App\Http\Controllers\MoneyOutController::class, 'categorise']
+    )->name('money-out.categorise');
+
+    Route::post(
+        '/money-out/{row}/review',
+        [\App\Http\Controllers\MoneyOutController::class, 'review']
+    )->name('money-out.review');
+});
