@@ -9,6 +9,7 @@ use App\Http\Controllers\Integrations\FreeAgentController;
 use App\Http\Controllers\MoneyOutController;
 use App\Http\Controllers\MoneyOutImportController;
 use App\Http\Controllers\ReconciliationInboxController;
+use App\Http\Controllers\WorkLogController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/dashboard', function () {
@@ -154,3 +155,15 @@ Route::middleware('auth')->get(
     '/imports',
     [ImportInboxController::class, 'index']
 )->name('imports.index');
+
+Route::middleware('auth')->group(function (): void {
+    Route::get(
+        '/work-log',
+        [WorkLogController::class, 'index']
+    )->name('work-log.index');
+
+    Route::post(
+        '/work-log',
+        [WorkLogController::class, 'store']
+    )->name('work-log.store');
+});
