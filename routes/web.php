@@ -180,3 +180,8 @@ Route::middleware('auth')->group(function (): void {
         [WorkReviewController::class, 'update']
     )->name('work-review.update');
 });
+
+Route::middleware('auth')->post(
+    '/work-review/client/{client}/invoice-draft',
+    [WorkReviewController::class, 'createInvoiceDraft']
+)->name('work-review.invoice-draft');

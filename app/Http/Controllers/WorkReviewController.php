@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Billing\Services\WorkInvoiceDraftService;
+use App\Models\Client;
 use App\Models\WorkLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,7 +18,14 @@ class WorkReviewController extends Controller
                 'client',
                 'user',
             ])
-            ->where('commercial_status', 'unreviewed')
+            ->whereIn(
+                'commercial_status',
+                [
+                    'unreviewed',
+                    'invoice',
+                ]
+            )
+            ->whereNull('accounting_invoice_id')
             ->orderBy('performed_at')
             ->orderBy('created_at')
             ->get();
@@ -93,5 +102,23 @@ class WorkReviewController extends Controller
             'success',
             'Commercial decision saved.'
         );
+    }
+
+    public function createInvoiceDraft(
+        Client $client,
+        WorkInvoiceDraftService $drafts
+    ): RedirectResponse {
+        $invoice = $drafts->createForClient(
+            $client
+        );
+
+        return redirect()
+            ->route('billing.review')
+            ->with(
+                'success',
+                'Draft invoice '
+                .($invoice->invoice_number ?? '')
+                .' created from approved work.'
+            );
     }
 }

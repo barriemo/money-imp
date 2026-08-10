@@ -217,6 +217,30 @@
                 </strong>
             </div>
 
+            @if (
+                $group['logs']
+                    ->where(
+                        'commercial_status',
+                        'invoice'
+                    )
+                    ->isNotEmpty()
+            )
+                <form
+                    method="POST"
+                    action="{{ route(
+                        'work-review.invoice-draft',
+                        $group['client']
+                    ) }}"
+                    style="margin-bottom:16px;"
+                >
+                    @csrf
+
+                    <button type="submit">
+                        Create invoice draft from approved work
+                    </button>
+                </form>
+            @endif
+
             @foreach ($group['logs'] as $log)
                 <div class="entry">
                     <div class="entry-top">
@@ -262,7 +286,13 @@
                             name="commercial_status"
                             required
                         >
-                            <option value="invoice">
+                            <option
+                                value="invoice"
+                                @selected(
+                                    $log->commercial_status
+                                    === 'invoice'
+                                )
+                            >
                                 Invoice
                             </option>
 
