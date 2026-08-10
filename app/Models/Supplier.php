@@ -20,4 +20,9 @@ class Supplier extends MoneyImpModel
     {
         return $this->hasMany(AccountingBill::class);
     }
+
+    public function aliases(): HasMany
+    {
+        return $this->hasMany(SupplierAlias::class);
+    }
 }
