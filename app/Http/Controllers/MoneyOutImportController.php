@@ -2,7 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Domains\Imports\Parsers\AmexCsvParser;
+use App\Domains\Imports\Detection\StatementProviderDetector;
+use App\Domains\Imports\Services\StatementParserRegistry;
 use App\Domains\Imports\Services\TransactionImportService;
 use App\Models\BankAccount;
 use App\Models\BankTransaction;
@@ -11,7 +12,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
-use RuntimeException;
 
 class MoneyOutImportController extends Controller
 {
@@ -28,7 +28,8 @@ class MoneyOutImportController extends Controller
 
     public function preview(
         Request $request,
-        AmexCsvParser $parser
+        StatementProviderDetector $detector,
+        StatementParserRegistry $parsers
     ): RedirectResponse {
         $validated = $request->validate([
             'bank_account_id' => [
@@ -37,16 +38,11 @@ class MoneyOutImportController extends Controller
                 'exists:bank_accounts,id',
             ],
 
-            'provider' => [
-                'required',
-                'in:amex',
-            ],
-
             'statement' => [
                 'required',
                 'file',
-                'mimes:csv,txt',
-                'max:10240',
+                'mimes:csv,txt,pdf',
+                'max:20480',
             ],
         ]);
 
@@ -59,29 +55,35 @@ class MoneyOutImportController extends Controller
 
         $absolutePath = Storage::path($storedPath);
 
-        if (
-            ! $parser->supports(
-                $validated['provider'],
-                strtolower($file->getClientOriginalExtension())
-            )
-        ) {
-            throw new RuntimeException(
-                'This statement format is not supported.'
+        try {
+            $provider = $detector->detect(
+                $absolutePath,
+                strtolower(
+                    $file->getClientOriginalExtension()
+                )
             );
+
+            $parser = $parsers->for($provider);
+
+            $rows = collect(
+                iterator_to_array(
+                    $parser->parse($absolutePath)
+                )
+            );
+        } catch (\Throwable $exception) {
+            Storage::delete($storedPath);
+
+            return back()->withErrors([
+                'statement' => $exception->getMessage(),
+            ]);
         }
 
         $account = BankAccount::findOrFail(
             $validated['bank_account_id']
         );
 
-        $rows = collect(
-            iterator_to_array(
-                $parser->parse($absolutePath)
-            )
-        );
-
-        $previewRows = $rows
-            ->map(function ($row) use ($account) {
+        $previewRows = $rows->map(
+            function ($row) use ($account): array {
                 $hash = hash(
                     'sha256',
                     implode('|', [
@@ -100,28 +102,24 @@ class MoneyOutImportController extends Controller
                     ])
                 );
 
-                $duplicate = BankTransaction::query()
-                    ->where(
-                        'transaction_hash',
-                        $hash
-                    )
-                    ->exists();
-
                 return [
                     'date' => $row->date->toDateString(),
                     'amount' => $row->amount,
                     'description' => $row->description,
                     'reference' => $row->reference,
-                    'duplicate' => $duplicate,
+                    'duplicate' => BankTransaction::query()
+                        ->where('transaction_hash', $hash)
+                        ->exists(),
                 ];
-            });
+            }
+        );
 
         session()->put(
             'money_out_import_preview',
             [
                 'bank_account_id' => $account->id,
                 'bank_account_name' => $account->name,
-                'provider' => $validated['provider'],
+                'provider' => $provider,
                 'stored_path' => $storedPath,
                 'original_filename' => $file->getClientOriginalName(),
 

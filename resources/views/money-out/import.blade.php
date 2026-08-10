@@ -207,32 +207,24 @@
                     </div>
 
                     <div>
-                        <label for="provider">
-                            Provider
-                        </label>
+                        <label>Format</label>
 
-                        <select
-                            id="provider"
-                            name="provider"
-                            required
-                        >
-                            <option value="amex">
-                                American Express
-                            </option>
-                        </select>
+                        <div class="muted" style="padding:12px 0;">
+                            PDF or CSV — Money Imp identifies the provider automatically.
+                        </div>
                     </div>
                 </div>
 
                 <div style="margin-top:16px;">
                     <label for="statement">
-                        CSV statement
+                        PDF or CSV statement
                     </label>
 
                     <input
                         id="statement"
                         name="statement"
                         type="file"
-                        accept=".csv,text/csv"
+                        accept=".csv,.txt,.pdf,text/csv,application/pdf"
                         required
                     >
                 </div>

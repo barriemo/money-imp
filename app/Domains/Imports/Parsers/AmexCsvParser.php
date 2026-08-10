@@ -2,14 +2,20 @@
 
 namespace App\Domains\Imports\Parsers;
 
+use App\Domains\Imports\Contracts\StatementParser;
 use App\Domains\Imports\Contracts\TransactionFileParser;
 use App\Domains\Imports\DTOs\ImportedTransaction;
 use Carbon\CarbonImmutable;
 use RuntimeException;
 use SplFileObject;
 
-class AmexCsvParser implements TransactionFileParser
+class AmexCsvParser implements StatementParser, TransactionFileParser
 {
+    public function provider(): string
+    {
+        return 'amex_csv';
+    }
+
     public function supports(
         string $provider,
         string $extension

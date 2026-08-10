@@ -2,22 +2,17 @@
 
 namespace App\Domains\Imports\Services;
 
-use App\Domains\Imports\Contracts\TransactionFileParser;
 use App\Models\BankAccount;
 use App\Models\BankTransaction;
 use App\Models\ImportBatch;
 use App\Models\ImportRow;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 use Throwable;
 
 class TransactionImportService
 {
-    /**
-     * @param  array<int, TransactionFileParser>  $parsers
-     */
     public function __construct(
-        private readonly array $parsers = [],
+        private readonly StatementParserRegistry $parsers,
     ) {}
 
     public function import(
@@ -26,24 +21,7 @@ class TransactionImportService
         BankAccount $account,
         ?int $userId = null
     ): ImportBatch {
-        $extension = strtolower(
-            pathinfo($path, PATHINFO_EXTENSION)
-        );
-
-        $parser = collect($this->parsers)
-            ->first(
-                fn (TransactionFileParser $parser) => $parser->supports(
-                    $provider,
-                    $extension
-                )
-            );
-
-        if (! $parser) {
-            throw new RuntimeException(
-                'No parser supports '
-                .$provider.' '.$extension.'.'
-            );
-        }
+        $parser = $this->parsers->for($provider);
 
         $batch = ImportBatch::create([
             'source_type' => 'transaction_file',
