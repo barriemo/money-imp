@@ -17,12 +17,7 @@ class FreeAgentClient
         string $path,
         array $query = []
     ): array {
-        if (
-            $connection->token_expires_at !== null
-            && $connection->token_expires_at->isPast()
-        ) {
-            $connection = $this->oauth->refresh($connection);
-        }
+        $connection = $this->validConnection($connection);
 
         return $this->request($connection)
             ->get($this->url($path), $query)
@@ -30,9 +25,49 @@ class FreeAgentClient
             ->json();
     }
 
+    public function post(
+        ExternalConnection $connection,
+        string $path,
+        array $payload = []
+    ): array {
+        $connection = $this->validConnection($connection);
+
+        return $this->request($connection)
+            ->post($this->url($path), $payload)
+            ->throw()
+            ->json();
+    }
+
+    public function put(
+        ExternalConnection $connection,
+        string $path,
+        array $payload = []
+    ): array {
+        $connection = $this->validConnection($connection);
+
+        return $this->request($connection)
+            ->put($this->url($path), $payload)
+            ->throw()
+            ->json();
+    }
+
+    private function validConnection(
+        ExternalConnection $connection
+    ): ExternalConnection {
+        if (
+            $connection->token_expires_at !== null
+            && $connection->token_expires_at->isPast()
+        ) {
+            return $this->oauth->refresh($connection);
+        }
+
+        return $connection;
+    }
+
     private function request(ExternalConnection $connection): PendingRequest
     {
         return Http::acceptJson()
+            ->asJson()
             ->withToken($connection->access_token)
             ->withUserAgent('Money Imp / Purple Imp');
     }

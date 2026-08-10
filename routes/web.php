@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\BillingQueueController;
+use App\Http\Controllers\BillingReviewController;
 use App\Http\Controllers\ChaseQueueController;
 use App\Http\Controllers\DebtorController;
 use App\Http\Controllers\Integrations\FreeAgentController;
@@ -65,4 +67,43 @@ Route::middleware('auth')->group(function (): void {
         '/chase',
         [ChaseQueueController::class, 'index']
     )->name('chase.index');
+});
+
+Route::middleware('auth')->group(function (): void {
+    Route::get(
+        '/billing',
+        [BillingQueueController::class, 'index']
+    )->name('billing.index');
+});
+
+Route::middleware('auth')->post(
+    '/billing/{client}/draft',
+    [BillingQueueController::class, 'createDraft']
+)->name('billing.create-draft');
+
+Route::middleware('auth')->post(
+    '/billing/drafts/bulk',
+    [BillingQueueController::class, 'createBulkDrafts']
+)->name('billing.create-bulk-drafts');
+
+Route::middleware('auth')->group(function (): void {
+    Route::get(
+        '/billing/review',
+        [BillingReviewController::class, 'index']
+    )->name('billing.review');
+
+    Route::post(
+        '/billing/review/send-approved',
+        [BillingReviewController::class, 'sendApproved']
+    )->name('billing.review.send-approved');
+
+    Route::post(
+        '/billing/review/{invoice}/approve',
+        [BillingReviewController::class, 'approve']
+    )->name('billing.review.approve');
+
+    Route::post(
+        '/billing/review/approve-bulk',
+        [BillingReviewController::class, 'approveBulk']
+    )->name('billing.review.approve-bulk');
 });
