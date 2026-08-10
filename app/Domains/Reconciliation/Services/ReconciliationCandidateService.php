@@ -27,7 +27,6 @@ class ReconciliationCandidateService
             ->where('match_status', 'unmatched')
             ->where('amount', '>', 0)
             ->with('bankAccount')
-            ->orderBy('transaction_date')
             ->chunkById(200, function ($transactions) use (&$stats): void {
                 foreach ($transactions as $transaction) {
                     $stats['considered']++;
