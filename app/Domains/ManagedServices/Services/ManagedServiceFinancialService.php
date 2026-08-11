@@ -10,14 +10,72 @@ class ManagedServiceFinancialService
     public function summary(
         ManagedService $service
     ): array {
-        $service->loadMissing(
-            'assets'
-        );
+        $service->loadMissing([
+            'assets',
+            'costAllocations',
+        ]);
+
+        $allocations = $service
+            ->costAllocations
+            ->keyBy(
+                'supplier_asset_id'
+            );
+
+        $costLines = $service
+            ->assets
+            ->map(
+                function (
+                    SupplierAsset $asset
+                ) use ($allocations): array {
+                    $allocation =
+                        $allocations->get(
+                            $asset->id
+                        );
+
+                    if ($allocation) {
+                        return [
+                            'asset' => $asset,
+
+                            'cost' => round(
+                                (float)
+                                $allocation
+                                    ->allocated_monthly_cost,
+                                2
+                            ),
+
+                            'cost_source' => 'allocation',
+
+                            'allocation_method' => $allocation
+                                ->allocation_method,
+
+                            'verified' => $allocation
+                                ->verified,
+                        ];
+                    }
+
+                    return [
+                        'asset' => $asset,
+
+                        'cost' => round(
+                            (float)
+                            $asset
+                                ->observed_cost,
+                            2
+                        ),
+
+                        'cost_source' => 'full_asset',
+
+                        'allocation_method' => null,
+
+                        'verified' => true,
+                    ];
+                }
+            )
+            ->values();
 
         $cost = round(
-            (float) $service->assets->sum(
-                fn (SupplierAsset $asset) => (float)
-                    $asset->observed_cost
+            (float) $costLines->sum(
+                'cost'
             ),
             2
         );
@@ -57,6 +115,8 @@ class ManagedServiceFinancialService
             'margin_percent' => $marginPercent,
 
             'asset_count' => $service->assets->count(),
+
+            'cost_lines' => $costLines,
         ];
     }
 }

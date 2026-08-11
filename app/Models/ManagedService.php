@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ManagedService extends MoneyImpModel
 {
@@ -38,5 +39,12 @@ class ManagedService extends MoneyImpModel
                 'metadata',
             ])
             ->withTimestamps();
+    }
+
+    public function costAllocations(): HasMany
+    {
+        return $this->hasMany(
+            ManagedServiceCostAllocation::class
+        );
     }
 }
