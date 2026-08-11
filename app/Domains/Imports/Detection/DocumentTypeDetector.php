@@ -48,6 +48,32 @@ class DocumentTypeDetector
         );
 
         /*
+         * Strong statement structures must win before
+         * supplier/invoice heuristics.
+         *
+         * A bank or card statement can contain supplier
+         * names and invoice-like phrases such as
+         * "amount due" and "due date".
+         */
+        if ($this->looksLikeStatement($text)) {
+            try {
+                $provider = $this->statements->detect(
+                    $path,
+                    'pdf'
+                );
+
+                return [
+                    'type' => 'statement',
+                    'provider' => $provider,
+                    'supplier' => null,
+                    'confidence' => 100,
+                ];
+            } catch (RuntimeException) {
+                //
+            }
+        }
+
+        /*
          * Important:
          *
          * Identify invoices BEFORE statements.
@@ -117,6 +143,31 @@ class DocumentTypeDetector
         }
 
         return $this->unknown();
+    }
+
+    private function looksLikeStatement(
+        string $text
+    ): bool {
+        $signals = [
+            'statement summary',
+            'account statement',
+            'opening balance',
+            'closing balance',
+            'authorised date',
+            'cleared date',
+            'repayment activity',
+            'spending activity',
+        ];
+
+        $matches = 0;
+
+        foreach ($signals as $signal) {
+            if (str_contains($text, $signal)) {
+                $matches++;
+            }
+        }
+
+        return $matches >= 3;
     }
 
     private function invoiceScore(
