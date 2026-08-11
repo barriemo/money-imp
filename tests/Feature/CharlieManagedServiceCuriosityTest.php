@@ -192,6 +192,28 @@ class CharlieManagedServiceCuriosityTest extends TestCase
         );
 
         $this->assertDatabaseHas(
+            'business_beliefs',
+            [
+                'subject_type' => $client->getMorphClass(),
+
+                'subject_id' => $client->id,
+
+                'belief_type' => 'service_provider',
+
+                'key' => 'backup_provider',
+
+                'value' => 'Dave at XYZ IT looks after backups.',
+            ]
+        );
+
+        $this->assertDatabaseHas(
+            'business_belief_evidence',
+            [
+                'relationship' => 'supports',
+            ]
+        );
+
+        $this->assertDatabaseHas(
             'managed_service_component_knowledge',
             [
                 'managed_service_id' => $service->id,
