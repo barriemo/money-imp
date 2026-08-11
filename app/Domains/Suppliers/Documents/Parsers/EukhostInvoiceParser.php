@@ -17,14 +17,21 @@ class EukhostInvoiceParser implements SupplierDocumentParser
     ): array {
         $assets = [];
 
-        foreach (
-            preg_split('/\R/', $text) as $line
-        ) {
-            $line = trim($line);
+        $lines = collect(
+            preg_split('/\R/', $text)
+        )
+            ->map(
+                fn (string $line) => trim($line)
+            )
+            ->filter()
+            ->values();
 
-            if ($line === '') {
-                continue;
-            }
+        for (
+            $index = 0;
+            $index < $lines->count();
+            $index++
+        ) {
+            $line = $lines[$index];
 
             if (
                 preg_match(
@@ -41,7 +48,10 @@ class EukhostInvoiceParser implements SupplierDocumentParser
                         $identity
                     ),
                     'name' => $identity,
-                    'cost' => null,
+                    'cost' => $this->nextPrice(
+                        $lines,
+                        $index
+                    ),
                     'confidence' => 100,
                 ];
 
@@ -55,18 +65,35 @@ class EukhostInvoiceParser implements SupplierDocumentParser
                     $match
                 )
             ) {
-                $identity = trim($match[1]);
-                $name = trim($match[2]);
+                $identity = trim(
+                    $match[1]
+                );
+
+                $name = trim(
+                    $match[2]
+                );
 
                 $assets[] = [
                     'type' => 'hosting_addon',
+
                     'key' => $this->assetKey(
-                        $identity.'-'.$name
+                        $identity
+                        .'-'
+                        .$name
                     ),
+
                     'name' => $name,
-                    'cost' => null,
-                    'confidence' => 95,
-                    'parent_key' => Str::slug($identity),
+
+                    'cost' => $this->nextPrice(
+                        $lines,
+                        $index
+                    ),
+
+                    'confidence' => 100,
+
+                    'parent_key' => $this->assetKey(
+                        $identity
+                    ),
                 ];
 
                 continue;
@@ -79,21 +106,83 @@ class EukhostInvoiceParser implements SupplierDocumentParser
                     $match
                 )
             ) {
-                $identity = trim($match[1]);
+                $identity = trim(
+                    $match[1]
+                );
+
+                if (
+                    strtolower($identity)
+                    === 'hostname'
+                ) {
+                    $identity =
+                        'e5-2630v4-10-core-legacy';
+                }
 
                 $assets[] = [
                     'type' => 'hosting_server',
+
                     'key' => $this->assetKey(
                         $identity
                     ),
+
                     'name' => $identity,
-                    'cost' => null,
-                    'confidence' => 90,
+
+                    'cost' => $this->nextPrice(
+                        $lines,
+                        $index
+                    ),
+
+                    'confidence' => 85,
                 ];
             }
         }
 
         return $assets;
+    }
+
+    private function nextPrice(
+        $lines,
+        int $index
+    ): ?float {
+        for (
+            $offset = 1;
+            $offset <= 12;
+            $offset++
+        ) {
+            $candidate =
+                $lines->get(
+                    $index + $offset
+                );
+
+            if ($candidate === null) {
+                break;
+            }
+
+            if (
+                preg_match(
+                    '/^£([\d,]+\.\d{2})$/',
+                    $candidate,
+                    $match
+                )
+            ) {
+                return (float) str_replace(
+                    ',',
+                    '',
+                    $match[1]
+                );
+            }
+
+            if (
+                preg_match(
+                    '/^(?:Addon|Pro \d|1 x E5-|Sub Total|Total)/i',
+                    $candidate
+                )
+            ) {
+                break;
+            }
+        }
+
+        return null;
     }
 
     private function assetKey(

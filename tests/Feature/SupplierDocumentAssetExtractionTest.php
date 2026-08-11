@@ -82,8 +82,18 @@ TEXT;
         );
 
         $this->assertSame(
+            152.96,
+            $assets[0]['cost']
+        );
+
+        $this->assertSame(
             'hosting_addon',
             $assets[1]['type']
+        );
+
+        $this->assertSame(
+            38.14,
+            $assets[1]['cost']
         );
     }
 }
