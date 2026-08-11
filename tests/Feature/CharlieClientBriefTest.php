@@ -89,6 +89,16 @@ class CharlieClientBriefTest extends TestCase
             $brief['summary']['insight_count']
         );
 
+        $this->assertArrayHasKey(
+            'conflicts',
+            $brief
+        );
+
+        $this->assertSame(
+            0,
+            $brief['summary']['conflict_count']
+        );
+
         $this->assertCount(
             1,
             $brief['priorities']

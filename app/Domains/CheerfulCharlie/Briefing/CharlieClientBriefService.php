@@ -5,6 +5,7 @@ namespace App\Domains\CheerfulCharlie\Briefing;
 use App\Domains\BusinessMemory\Actions\CreateBusinessMemory;
 use App\Domains\BusinessMemory\Context\BusinessContextService;
 use App\Domains\BusinessMemory\Services\BusinessMemoryTimelineService;
+use App\Domains\CheerfulCharlie\Conflicts\CharlieConflictService;
 use App\Domains\CheerfulCharlie\Priority\CharliePriorityEngine;
 use App\Domains\ManagedServices\Services\ManagedServiceTruthService;
 use App\Models\BusinessMemoryInsight;
@@ -19,6 +20,7 @@ class CharlieClientBriefService
         private BusinessContextService $context,
         private BusinessMemoryTimelineService $timeline,
         private CharliePriorityEngine $priorities,
+        private CharlieConflictService $conflicts,
         private ManagedServiceTruthService $managedTruth
     ) {}
 
@@ -71,6 +73,11 @@ class CharlieClientBriefService
                 $insights
             );
 
+        $conflicts = $this->conflicts
+            ->forSubject(
+                $client
+            );
+
         $managedServices = ManagedService::query()
             ->where(
                 'client_id',
@@ -103,6 +110,8 @@ class CharlieClientBriefService
 
             'priorities' => $rankedPriorities,
 
+            'conflicts' => $conflicts,
+
             'managed_services' => $managedServices,
 
             'summary' => [
@@ -115,6 +124,8 @@ class CharlieClientBriefService
                 'theory_count' => $theories->count(),
 
                 'insight_count' => $insights->count(),
+
+                'conflict_count' => $conflicts->count(),
 
                 'managed_service_count' => $managedServices->count(),
             ],
