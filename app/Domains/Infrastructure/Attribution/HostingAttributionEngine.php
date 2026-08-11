@@ -2,6 +2,7 @@
 
 namespace App\Domains\Infrastructure\Attribution;
 
+use App\Domains\Attribution\AttributionResolver;
 use App\Models\HostingAttributionCandidate;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -9,7 +10,8 @@ use Illuminate\Support\Facades\DB;
 class HostingAttributionEngine
 {
     public function __construct(
-        private HostingEvidenceBuilder $evidence
+        private HostingEvidenceBuilder $evidence,
+        private AttributionResolver $resolver
     ) {}
 
     public function candidates(): Collection
@@ -55,6 +57,48 @@ class HostingAttributionEngine
                     if (! $evidence) {
                         return null;
                     }
+
+                    $this->resolver->propose(
+                        subjectType: 'client',
+
+                        subjectId: $item->client_id,
+
+                        relationshipType: 'hosted_on',
+
+                        targetType: 'supplier_asset',
+
+                        targetId: null,
+
+                        source: 'hosting_invoice_history',
+
+                        reason: 'Recurring hosting billing exists but the underlying server is not yet attributed.',
+
+                        evidence: [
+                            [
+                                'type' => 'invoice_history',
+
+                                'summary' => $item->description,
+
+                                'confidence' => 95,
+
+                                'reference' => $item->invoice_item_id,
+
+                                'metadata' => [
+                                    'invoice_number' => $item->invoice_number,
+
+                                    'invoice_date' => $item->invoice_date,
+
+                                    'monthly_rate' => (float) $item->unit_price,
+                                ],
+                            ],
+                        ],
+
+                        metadata: [
+                            'service_hint' => $evidence['service_hint'],
+
+                            'monthly_rate' => $evidence['monthly_rate'],
+                        ]
+                    );
 
                     return HostingAttributionCandidate::updateOrCreate(
                         [
