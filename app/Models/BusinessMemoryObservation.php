@@ -2,18 +2,15 @@
 
 namespace App\Models;
 
-use App\Domains\BusinessMemory\Enums\BusinessMemoryEntryType;
+use App\Domains\BusinessMemory\Enums\BusinessMemoryObservationType;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class BusinessMemoryEntry extends MoneyImpModel
+class BusinessMemoryObservation extends MoneyImpModel
 {
     protected function casts(): array
     {
         return [
-            'entry_type' => BusinessMemoryEntryType::class,
-
-            'occurred_at' => 'datetime',
+            'observation_type' => BusinessMemoryObservationType::class,
 
             'confidence' => 'integer',
 
@@ -31,10 +28,11 @@ class BusinessMemoryEntry extends MoneyImpModel
         );
     }
 
-    public function observations(): HasMany
+    public function entry(): BelongsTo
     {
-        return $this->hasMany(
-            BusinessMemoryObservation::class
+        return $this->belongsTo(
+            BusinessMemoryEntry::class,
+            'business_memory_entry_id'
         );
     }
 }
