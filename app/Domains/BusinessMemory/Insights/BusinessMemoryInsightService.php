@@ -6,6 +6,7 @@ use App\Domains\BusinessMemory\Enums\BusinessMemoryInsightType;
 use App\Domains\BusinessMemory\Enums\BusinessMemoryObservationType;
 use App\Models\BusinessMemory;
 use App\Models\BusinessMemoryInsight;
+use App\Models\BusinessMemoryObservation;
 use App\Models\BusinessMemoryTheory;
 use Illuminate\Support\Collection;
 
@@ -69,7 +70,7 @@ class BusinessMemoryInsightService
         foreach ($observations as $observation) {
             $definition =
                 $this->definitionFor(
-                    $observation->observation_type
+                    $observation
                 );
 
             if (! $definition) {
@@ -111,9 +112,9 @@ class BusinessMemoryInsightService
     }
 
     private function definitionFor(
-        BusinessMemoryObservationType $type
+        BusinessMemoryObservation $observation
     ): ?array {
-        return match ($type) {
+        return match ($observation->observation_type) {
             BusinessMemoryObservationType::Risk => [
                 BusinessMemoryInsightType::Risk,
                 'Operational risk requires review',
@@ -161,5 +162,49 @@ class BusinessMemoryInsightService
                 ),
             ])
         );
+    }
+
+    private function opportunityTitle(
+        string $statement
+    ): string {
+        $text = strtolower(
+            $statement
+        );
+
+        return match (true) {
+            str_contains(
+                $text,
+                'automation'
+            ) => 'Automation opportunity',
+
+            str_contains(
+                $text,
+                'cyber'
+            ) => 'Cyber security opportunity',
+
+            str_contains(
+                $text,
+                'another nursery'
+            ),
+            str_contains(
+                $text,
+                'another location'
+            ),
+            str_contains(
+                $text,
+                'second location'
+            ),
+            str_contains(
+                $text,
+                'new site'
+            ) => 'Expansion opportunity',
+
+            str_contains(
+                $text,
+                'crm'
+            ) => 'CRM opportunity',
+
+            default => 'Commercial opportunity identified',
+        };
     }
 }
