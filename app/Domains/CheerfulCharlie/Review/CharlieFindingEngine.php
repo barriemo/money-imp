@@ -15,7 +15,8 @@ class CharlieFindingEngine
         private CreateBusinessMemory $memories,
         private CharlieConflictService $conflicts,
         private KnowledgeGapService $gaps,
-        private CharlieFindingPriority $priority
+        private CharlieFindingPriority $priority,
+        private CharlieFindingFingerprint $fingerprints
     ) {}
 
     public function findings(
@@ -39,6 +40,12 @@ class CharlieFindingEngine
                 $this->insightFindings(
                     $memory->id
                 )
+            )
+            ->unique(
+                fn (array $finding) => $this->fingerprints
+                    ->make(
+                        $finding
+                    )
             )
             ->sortByDesc(
                 'priority_score'
@@ -83,17 +90,17 @@ class CharlieFindingEngine
                         'source_reference' => $conflict['belief']->id,
 
                         'evidence' => [
-                        'belief_key' => $conflict[
-                                'belief'
-                            ]->key,
+                            'belief_key' => $conflict[
+                                    'belief'
+                                ]->key,
 
-                        'current_value' => $conflict[
-                                'current_value'
-                            ],
+                            'current_value' => $conflict[
+                                    'current_value'
+                                ],
 
-                        'contradiction_count' => $conflict[
-                                'contradictions'
-                            ]->count(),
+                            'contradiction_count' => $conflict[
+                                    'contradictions'
+                                ]->count(),
                         ],
                     ];
                 }
@@ -204,7 +211,7 @@ class CharlieFindingEngine
                         'source_reference' => $insight->id,
 
                         'evidence' => [
-                        'insight_id' => $insight->id,
+                            'insight_id' => $insight->id,
                         ],
                     ];
                 }

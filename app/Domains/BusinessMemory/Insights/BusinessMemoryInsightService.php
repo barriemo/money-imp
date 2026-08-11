@@ -141,4 +141,25 @@ class BusinessMemoryInsightService
             default => null,
         };
     }
+
+    private function semanticKey(
+        string $type,
+        string $title,
+        string $summary
+    ): string {
+        return hash(
+            'sha256',
+            implode('|', [
+                strtolower(trim($type)),
+                strtolower(trim($title)),
+                strtolower(
+                    preg_replace(
+                        '/\s+/',
+                        ' ',
+                        trim($summary)
+                    ) ?? trim($summary)
+                ),
+            ])
+        );
+    }
 }
