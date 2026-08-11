@@ -79,6 +79,14 @@
         ) }}">
             View learned rules
         </a>
+
+        &nbsp; · &nbsp;
+
+        <a href="{{ route(
+            'suppliers.assets.index'
+        ) }}">
+            Review infrastructure
+        </a>
     </p>
 
     <p class="muted">

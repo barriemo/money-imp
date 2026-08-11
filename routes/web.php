@@ -11,6 +11,7 @@ use App\Http\Controllers\Integrations\FreeAgentController;
 use App\Http\Controllers\MoneyOutController;
 use App\Http\Controllers\MoneyOutImportController;
 use App\Http\Controllers\ReconciliationInboxController;
+use App\Http\Controllers\SupplierAssetController;
 use App\Http\Controllers\SupplierAttributionRuleController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierTransactionController;
@@ -285,3 +286,19 @@ Route::middleware('auth')->delete(
         'destroy',
     ]
 )->name('suppliers.rules.destroy');
+
+Route::middleware('auth')->get(
+    '/suppliers/assets',
+    [
+        SupplierAssetController::class,
+        'index',
+    ]
+)->name('suppliers.assets.index');
+
+Route::middleware('auth')->post(
+    '/suppliers/assets/{asset}',
+    [
+        SupplierAssetController::class,
+        'update',
+    ]
+)->name('suppliers.assets.update');
