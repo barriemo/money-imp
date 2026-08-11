@@ -2,10 +2,12 @@
 
 namespace App\Domains\Imports\Services;
 
+use App\Domains\Suppliers\Rules\SupplierAttributionAutoApplier;
 use App\Models\BankAccount;
 use App\Models\BankTransaction;
 use App\Models\ImportBatch;
 use App\Models\ImportRow;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -13,6 +15,7 @@ class TransactionImportService
 {
     public function __construct(
         private readonly StatementParserRegistry $parsers,
+        private readonly SupplierAttributionAutoApplier $supplierRules,
     ) {}
 
     public function import(
@@ -108,7 +111,8 @@ class TransactionImportService
                         $account,
                         $source,
                         $hash,
-                        $index
+                        $index,
+                        $userId
                     ): void {
                         $transaction = BankTransaction::create([
                             'bank_account_id' => $account->id,
@@ -119,6 +123,15 @@ class TransactionImportService
                             'source_type' => 'file_import',
                             'transaction_hash' => $hash,
                         ]);
+
+                        $user = $userId
+                            ? User::find($userId)
+                            : null;
+
+                        $this->supplierRules->apply(
+                            $transaction,
+                            $user
+                        );
 
                         ImportRow::create([
                             'import_batch_id' => $batch->id,

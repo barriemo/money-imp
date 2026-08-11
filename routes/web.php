@@ -11,6 +11,7 @@ use App\Http\Controllers\Integrations\FreeAgentController;
 use App\Http\Controllers\MoneyOutController;
 use App\Http\Controllers\MoneyOutImportController;
 use App\Http\Controllers\ReconciliationInboxController;
+use App\Http\Controllers\SupplierAttributionRuleController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierTransactionController;
 use App\Http\Controllers\UniversalImportController;
@@ -260,3 +261,27 @@ Route::middleware('auth')->post(
         'update',
     ]
 )->name('suppliers.transactions.update');
+
+Route::middleware('auth')->get(
+    '/suppliers/rules',
+    [
+        SupplierAttributionRuleController::class,
+        'index',
+    ]
+)->name('suppliers.rules.index');
+
+Route::middleware('auth')->post(
+    '/suppliers/rules/{rule}/toggle',
+    [
+        SupplierAttributionRuleController::class,
+        'toggle',
+    ]
+)->name('suppliers.rules.toggle');
+
+Route::middleware('auth')->delete(
+    '/suppliers/rules/{rule}',
+    [
+        SupplierAttributionRuleController::class,
+        'destroy',
+    ]
+)->name('suppliers.rules.destroy');

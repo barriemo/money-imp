@@ -73,6 +73,14 @@
 <main>
     <h1>Supplier Intelligence</h1>
 
+    <p>
+        <a href="{{ route(
+            'suppliers.rules.index'
+        ) }}">
+            View learned rules
+        </a>
+    </p>
+
     <p class="muted">
         Why is this money going out,
         and who should be paying for it?
