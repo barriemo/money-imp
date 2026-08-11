@@ -22,4 +22,11 @@ class BankAccount extends MoneyImpModel
     {
         return $this->hasMany(BankTransaction::class);
     }
+
+    public function balanceSnapshots(): HasMany
+    {
+        return $this->hasMany(
+            AccountBalanceSnapshot::class
+        );
+    }
 }

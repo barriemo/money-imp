@@ -1,0 +1,204 @@
+<?php
+
+namespace App\Domains\FinancialTruth\Services;
+
+use App\Models\AccountBalanceSnapshot;
+use App\Models\AccountingInvoice;
+use App\Models\BankAccount;
+use App\Models\Liability;
+use App\Models\PaymentAllocation;
+
+class FinancialTruthService
+{
+    public function build(): array
+    {
+        $accounts = BankAccount::query()
+            ->orderBy('name')
+            ->get();
+
+        $accountTruth = $accounts->map(
+            function (BankAccount $account): array {
+                $snapshot = AccountBalanceSnapshot::query()
+                    ->where(
+                        'bank_account_id',
+                        $account->id
+                    )
+                    ->where('verified', true)
+                    ->latest('balance_at')
+                    ->first();
+
+                return [
+                    'id' => $account->id,
+                    'name' => $account->name,
+                    'type' => $account->account_type,
+
+                    'balance' => $snapshot
+                        ? (float) $snapshot->balance
+                        : null,
+
+                    'balance_at' => $snapshot?->balance_at,
+
+                    'verified' => $snapshot !== null,
+
+                    'confidence' => $snapshot?->confidence ?? 0,
+
+                    'source' => $snapshot?->source,
+                ];
+            }
+        );
+
+        $cash = $accountTruth
+            ->where(
+                'type',
+                'StandardBankAccount'
+            )
+            ->where('verified', true)
+            ->sum('balance');
+
+        $cardDebt = abs(
+            $accountTruth
+                ->where(
+                    'type',
+                    'CreditCardAccount'
+                )
+                ->where('verified', true)
+                ->filter(
+                    fn (array $account) => $account['balance'] < 0
+                )
+                ->sum('balance')
+        );
+
+        $liabilities = Liability::query()
+            ->where('status', 'open')
+            ->get();
+
+        $verifiedLiabilities = $liabilities
+            ->where('verified', true);
+
+        /*
+         * Do not call stale invoice ledger values
+         * collectible cash.
+         *
+         * This is the accounting ledger position only.
+         */
+        $ledgerReceivables =
+            (float) AccountingInvoice::query()
+                ->where(
+                    'outstanding_amount',
+                    '>',
+                    0
+                )
+                ->sum(
+                    'outstanding_amount'
+                );
+
+        $suggestedAllocations =
+            (float) PaymentAllocation::query()
+                ->where(
+                    'status',
+                    'suggested'
+                )
+                ->sum('amount');
+
+        $knownLiabilities =
+            (float) $verifiedLiabilities
+                ->sum('amount');
+
+        $verifiedAccountCount =
+            $accountTruth
+                ->where('verified', true)
+                ->count();
+
+        $totalAccountCount =
+            $accountTruth->count();
+
+        $balanceConfidence =
+            $totalAccountCount > 0
+                ? (int) round(
+                    (
+                        $verifiedAccountCount
+                        / $totalAccountCount
+                    ) * 100
+                )
+                : 0;
+
+        return [
+            'accounts' => $accountTruth->values(),
+
+            'cash' => [
+                'available' => $cash,
+
+                'credit_card_debt' => $cardDebt,
+
+                'known_liabilities' => $knownLiabilities,
+
+                'net_position' => $cash
+                    - $cardDebt
+                    - $knownLiabilities,
+
+                'confidence' => $balanceConfidence,
+            ],
+
+            'receivables' => [
+                'ledger_outstanding' => $ledgerReceivables,
+
+                'payments_waiting_allocation' => $suggestedAllocations,
+
+                /*
+                 * Deliberately not pretending
+                 * this is "true debtors" yet.
+                 */
+                'verified_collectible' => null,
+
+                'confidence' => 0,
+            ],
+
+            'liabilities' => [
+                'total' => $knownLiabilities,
+
+                'vat' => (float)
+                    $verifiedLiabilities
+                        ->where(
+                            'type',
+                            'vat'
+                        )
+                        ->sum('amount'),
+
+                'paye' => (float)
+                    $verifiedLiabilities
+                        ->where(
+                            'type',
+                            'paye'
+                        )
+                        ->sum('amount'),
+
+                'other' => (float)
+                    $verifiedLiabilities
+                        ->whereNotIn(
+                            'type',
+                            [
+                                'vat',
+                                'paye',
+                            ]
+                        )
+                        ->sum('amount'),
+            ],
+
+            'confidence' => [
+                'bank_balances' => $balanceConfidence,
+
+                'liabilities' => $liabilities->count() > 0
+                        ? (int) round(
+                            (
+                                $verifiedLiabilities
+                                    ->count()
+                                / $liabilities->count()
+                            ) * 100
+                        )
+                        : 0,
+
+                'receivables' => 0,
+            ],
+        ];
+    }
+}

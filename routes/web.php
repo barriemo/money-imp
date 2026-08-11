@@ -5,6 +5,7 @@ use App\Http\Controllers\BillingReviewController;
 use App\Http\Controllers\ChaseQueueController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DebtorController;
+use App\Http\Controllers\FinancialTruthController;
 use App\Http\Controllers\ImportInboxController;
 use App\Http\Controllers\Integrations\FreeAgentController;
 use App\Http\Controllers\MoneyOutController;
@@ -201,3 +202,11 @@ Route::middleware('auth')->post(
         'processStatements',
     ]
 )->name('imports.process-statements');
+
+Route::middleware('auth')->get(
+    '/financial-truth',
+    [
+        FinancialTruthController::class,
+        'index',
+    ]
+)->name('financial-truth.index');
