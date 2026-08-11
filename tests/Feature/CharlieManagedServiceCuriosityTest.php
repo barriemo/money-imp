@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Domains\BusinessMemory\Actions\CreateBusinessMemory;
+use App\Domains\CheerfulCharlie\Curiosity\CharlieAnswerIngestionService;
 use App\Domains\CheerfulCharlie\Curiosity\CharlieQuestionService;
 use App\Domains\ManagedServices\Actions\CreateManagedService;
 use App\Domains\ManagedServices\Actions\LinkManagedServiceAsset;
@@ -130,6 +131,77 @@ class CharlieManagedServiceCuriosityTest extends TestCase
         $this->assertSame(
             100,
             $question['priority']
+        );
+    }
+
+    public function test_managed_service_answer_creates_component_knowledge(): void
+    {
+        $client =
+            Client::factory()->create();
+
+        $template =
+            ManagedServiceTemplate::create([
+                'service_type' => 'managed_hosting',
+
+                'name' => 'Managed Hosting',
+
+                'active' => true,
+            ]);
+
+        ManagedServiceRequirement::create([
+            'managed_service_template_id' => $template->id,
+
+            'component_type' => 'backup',
+
+            'name' => 'Backup',
+
+            'required' => true,
+
+            'minimum_count' => 1,
+
+            'weight' => 1,
+        ]);
+
+        $service = app(
+            CreateManagedService::class
+        )->execute(
+            client: $client,
+            type: 'managed_hosting',
+            name: 'Managed Hosting',
+            expectedMonthlyRevenue: 185
+        );
+
+        $memory = app(
+            CreateBusinessMemory::class
+        )->execute(
+            $client
+        );
+
+        $question = app(
+            CharlieQuestionService::class
+        )->next(
+            $memory
+        );
+
+        app(
+            CharlieAnswerIngestionService::class
+        )->ingest(
+            memory: $memory,
+            question: $question,
+            answer: 'Dave at XYZ IT looks after backups.'
+        );
+
+        $this->assertDatabaseHas(
+            'managed_service_component_knowledge',
+            [
+                'managed_service_id' => $service->id,
+
+                'component_type' => 'backup',
+
+                'state' => 'externally_managed',
+
+                'value' => 'Dave at XYZ IT looks after backups.',
+            ]
         );
     }
 }
