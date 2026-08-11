@@ -42,6 +42,11 @@ class CharlieClientIntakeTest extends TestCase
             $result['observations']->count()
         );
 
+        $this->assertArrayHasKey(
+            'contexts',
+            $result
+        );
+
         $this->assertGreaterThan(
             0,
             $result['theories']->count()

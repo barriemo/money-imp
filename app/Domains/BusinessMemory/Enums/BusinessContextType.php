@@ -23,6 +23,7 @@ enum BusinessContextType: string
     case Competitor = 'competitor';
 
     case CommercialPreference = 'commercial_preference';
+    case ServiceExpectation = 'service_expectation';
 
     case DoNotRecommend = 'do_not_recommend';
 

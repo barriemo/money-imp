@@ -4,6 +4,7 @@ namespace App\Domains\CheerfulCharlie\Intake;
 
 use App\Domains\BusinessMemory\Actions\AddBusinessMemoryEntry;
 use App\Domains\BusinessMemory\Actions\CreateBusinessMemory;
+use App\Domains\BusinessMemory\Context\Extraction\BusinessContextExtractionService;
 use App\Domains\BusinessMemory\Enums\BusinessMemoryEntryType;
 use App\Domains\BusinessMemory\Extraction\BusinessMemoryExtractionService;
 use App\Domains\BusinessMemory\Insights\BusinessMemoryInsightService;
@@ -18,6 +19,7 @@ class CharlieClientIntakeService
         private CreateBusinessMemory $memories,
         private AddBusinessMemoryEntry $entries,
         private BusinessMemoryExtractionService $extraction,
+        private BusinessContextExtractionService $contextExtraction,
         private BusinessMemoryTheoryService $theories,
         private BusinessMemoryInsightService $insights,
         private CharlieClientBriefService $briefs
@@ -51,6 +53,9 @@ class CharlieClientIntakeService
         $observations = $this->extraction
             ->extract($entry);
 
+        $contexts = $this->contextExtraction
+            ->extract($entry);
+
         $theories = $this->theories
             ->rebuild($memory);
 
@@ -61,6 +66,8 @@ class CharlieClientIntakeService
             'entry' => $entry,
 
             'observations' => $observations,
+
+            'contexts' => $contexts,
 
             'theories' => $theories,
 
