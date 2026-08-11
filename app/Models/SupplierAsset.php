@@ -50,4 +50,12 @@ class SupplierAsset extends MoneyImpModel
             'to_asset_id'
         );
     }
+
+    public function billingAllocations(): HasMany
+    {
+        return $this->hasMany(
+            InfrastructureBillingAllocation::class,
+            'supplier_asset_id'
+        );
+    }
 }

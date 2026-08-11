@@ -36,6 +36,26 @@ class InfrastructureBillingReconciliationService
             );
         }
 
+        $allocatedRecovery = round(
+            (float) $asset
+                ->billingAllocations()
+                ->sum('allocated_amount'),
+            2
+        );
+
+        if ($allocatedRecovery > 0) {
+            return $this->result(
+                asset: $asset,
+                status: $allocatedRecovery < $cost
+                    ? 'UNDER_RECOVERED'
+                    : 'COVERED',
+                cost: $cost,
+                recovery: $allocatedRecovery,
+                description: 'Allocated client infrastructure billing',
+                confidence: 'allocated'
+            );
+        }
+
         $keywords = $this->keywordsFor(
             $asset
         );
