@@ -128,8 +128,8 @@ class SupplierDocumentAssetExtractor
                 ),
 
                 'metadata' => [
-                ...$metadata,
-                'source_documents' => $documents,
+                    ...$metadata,
+                    'source_documents' => $documents,
                 ],
             ];
 

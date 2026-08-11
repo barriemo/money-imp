@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SupplierAsset extends MoneyImpModel
 {
@@ -32,5 +33,21 @@ class SupplierAsset extends MoneyImpModel
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function outgoingRelationships(): HasMany
+    {
+        return $this->hasMany(
+            InfrastructureRelationship::class,
+            'from_asset_id'
+        );
+    }
+
+    public function incomingRelationships(): HasMany
+    {
+        return $this->hasMany(
+            InfrastructureRelationship::class,
+            'to_asset_id'
+        );
     }
 }
