@@ -162,6 +162,153 @@
         </article>
     </div>
 
+
+    @if (session('success'))
+        <div class="card good" style="margin: 24px 0;">
+            {{ session('success') }}
+        </div>
+    @endif
+
+    <h2>Verify today's truth</h2>
+
+    <div class="grid">
+        <article class="card">
+            <h3>Account balance</h3>
+
+            <form
+                method="POST"
+                action="{{ route(
+                    'financial-truth.balance.store'
+                ) }}"
+            >
+                @csrf
+
+                <p>
+                    <select
+                        name="bank_account_id"
+                        required
+                        style="width: 100%; padding: 12px;"
+                    >
+                        @foreach ($bankAccounts as $account)
+                            <option value="{{ $account->id }}">
+                                {{ $account->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </p>
+
+                <p>
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="balance"
+                        placeholder="Actual balance"
+                        required
+                        style="width: 100%; padding: 12px;"
+                    >
+                </p>
+
+                <p>
+                    <input
+                        type="datetime-local"
+                        name="balance_at"
+                        value="{{ now()->format('Y-m-d\TH:i') }}"
+                        required
+                        style="width: 100%; padding: 12px;"
+                    >
+                </p>
+
+                <p>
+                    <input
+                        type="text"
+                        name="notes"
+                        placeholder="Checked in RBS app, statement, etc."
+                        style="width: 100%; padding: 12px;"
+                    >
+                </p>
+
+                <button type="submit">
+                    Verify balance
+                </button>
+            </form>
+        </article>
+
+        <article class="card">
+            <h3>Known liability</h3>
+
+            <form
+                method="POST"
+                action="{{ route(
+                    'financial-truth.liability.store'
+                ) }}"
+            >
+                @csrf
+
+                <p>
+                    <select
+                        name="type"
+                        required
+                        style="width: 100%; padding: 12px;"
+                    >
+                        <option value="vat">VAT</option>
+                        <option value="paye">PAYE</option>
+                        <option value="corporation_tax">
+                            Corporation Tax
+                        </option>
+                        <option value="loan">Loan</option>
+                        <option value="creditor">
+                            Creditor
+                        </option>
+                        <option value="other">Other</option>
+                    </select>
+                </p>
+
+                <p>
+                    <input
+                        type="text"
+                        name="name"
+                        placeholder="e.g. HMRC VAT"
+                        required
+                        style="width: 100%; padding: 12px;"
+                    >
+                </p>
+
+                <p>
+                    <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        name="amount"
+                        placeholder="Amount still owed"
+                        required
+                        style="width: 100%; padding: 12px;"
+                    >
+                </p>
+
+                <p>
+                    <input
+                        type="date"
+                        name="due_date"
+                        style="width: 100%; padding: 12px;"
+                    >
+                </p>
+
+                <p>
+                    <input
+                        type="text"
+                        name="notes"
+                        placeholder="Notes / payment arrangement"
+                        style="width: 100%; padding: 12px;"
+                    >
+                </p>
+
+                <button type="submit">
+                    Verify liability
+                </button>
+            </form>
+        </article>
+    </div>
+
     <h2>Accounts</h2>
 
     <table>

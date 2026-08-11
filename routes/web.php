@@ -11,6 +11,7 @@ use App\Http\Controllers\Integrations\FreeAgentController;
 use App\Http\Controllers\MoneyOutController;
 use App\Http\Controllers\MoneyOutImportController;
 use App\Http\Controllers\ReconciliationInboxController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UniversalImportController;
 use App\Http\Controllers\WorkLogController;
 use App\Http\Controllers\WorkReviewController;
@@ -210,3 +211,35 @@ Route::middleware('auth')->get(
         'index',
     ]
 )->name('financial-truth.index');
+
+Route::middleware('auth')->post(
+    '/financial-truth/balance',
+    [
+        FinancialTruthController::class,
+        'storeBalance',
+    ]
+)->name('financial-truth.balance.store');
+
+Route::middleware('auth')->post(
+    '/financial-truth/liability',
+    [
+        FinancialTruthController::class,
+        'storeLiability',
+    ]
+)->name('financial-truth.liability.store');
+
+Route::middleware('auth')->get(
+    '/suppliers',
+    [
+        SupplierController::class,
+        'index',
+    ]
+)->name('suppliers.index');
+
+Route::middleware('auth')->post(
+    '/suppliers',
+    [
+        SupplierController::class,
+        'store',
+    ]
+)->name('suppliers.store');
