@@ -14,6 +14,7 @@ class BankTransaction extends MoneyImpModel
             'amount' => 'decimal:2',
             'match_confidence' => 'decimal:2',
             'matched_at' => 'datetime',
+            'cost_reviewed_at' => 'datetime',
             'raw_payload' => 'array',
             'metadata' => 'array',
         ];

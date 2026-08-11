@@ -12,6 +12,7 @@ use App\Http\Controllers\MoneyOutController;
 use App\Http\Controllers\MoneyOutImportController;
 use App\Http\Controllers\ReconciliationInboxController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierTransactionController;
 use App\Http\Controllers\UniversalImportController;
 use App\Http\Controllers\WorkLogController;
 use App\Http\Controllers\WorkReviewController;
@@ -243,3 +244,19 @@ Route::middleware('auth')->post(
         'store',
     ]
 )->name('suppliers.store');
+
+Route::middleware('auth')->get(
+    '/suppliers/{supplier}/transactions',
+    [
+        SupplierTransactionController::class,
+        'index',
+    ]
+)->name('suppliers.transactions.index');
+
+Route::middleware('auth')->post(
+    '/suppliers/{supplier}/transactions/{transaction}',
+    [
+        SupplierTransactionController::class,
+        'update',
+    ]
+)->name('suppliers.transactions.update');

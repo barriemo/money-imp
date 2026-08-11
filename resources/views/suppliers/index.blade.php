@@ -225,6 +225,15 @@
 
                 <td>
                     {{ $item->lastSeen ?? '—' }}
+
+                    <div style="margin-top: 6px;">
+                        <a href="{{ route(
+                            'suppliers.transactions.index',
+                            $item->supplier
+                        ) }}">
+                            View transactions
+                        </a>
+                    </div>
                 </td>
             </tr>
         @empty
