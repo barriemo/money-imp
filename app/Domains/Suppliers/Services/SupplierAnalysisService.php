@@ -33,18 +33,16 @@ class SupplierAnalysisService
             $supplier
         );
 
-        $totalSpend = abs(
-            (float) $transactions->sum('amount')
+        $totalSpend = $this->spend(
+            $transactions
         );
 
-        $last30DaysSpend = abs(
-            (float) $transactions
-                ->filter(
-                    fn (BankTransaction $transaction) => $transaction->transaction_date
-                        && $transaction->transaction_date
-                            ->gte(now()->subDays(30))
-                )
-                ->sum('amount')
+        $last30DaysSpend = $this->spend(
+            $transactions->filter(
+                fn (BankTransaction $transaction) => $transaction->transaction_date
+                    && $transaction->transaction_date
+                        ->gte(now()->subDays(30))
+            )
         );
 
         $months = $transactions
@@ -65,6 +63,54 @@ class SupplierAnalysisService
                 $transactions
             );
 
+        $internalSpend =
+            $this->purposeSpend(
+                $transactions,
+                'internal'
+            );
+
+        $sharedSpend =
+            $this->purposeSpend(
+                $transactions,
+                'shared'
+            );
+
+        $wasteSpend =
+            $this->purposeSpend(
+                $transactions,
+                'cancel'
+            );
+
+        /*
+         * Client spend is backed by real
+         * CostAllocation records.
+         */
+        $clientSpend = $allocatedSpend;
+
+        $knownSpend =
+            $clientSpend
+            + $internalSpend
+            + $sharedSpend
+            + $wasteSpend;
+
+        $unknownSpend = max(
+            0,
+            $totalSpend - $knownSpend
+        );
+
+        /*
+         * This is deliberately called
+         * POTENTIAL recovery.
+         *
+         * Until reviewed, we do not claim
+         * the money definitely belongs
+         * to clients.
+         */
+        $potentialRecovery =
+            $supplier->recoverable
+                ? $unknownSpend
+                : 0.0;
+
         return new SupplierAnalysis(
             supplier: $supplier,
 
@@ -76,17 +122,24 @@ class SupplierAnalysisService
 
             averageMonthlySpend: round($averageMonthly, 2),
 
-            annualisedSpend: round($averageMonthly * 12, 2),
+            annualisedSpend: round(
+                $averageMonthly * 12,
+                2
+            ),
 
             allocatedSpend: round($allocatedSpend, 2),
 
-            unallocatedSpend: round(
-                max(
-                    0,
-                    $totalSpend - $allocatedSpend
-                ),
-                2
-            ),
+            clientSpend: round($clientSpend, 2),
+
+            internalSpend: round($internalSpend, 2),
+
+            sharedSpend: round($sharedSpend, 2),
+
+            wasteSpend: round($wasteSpend, 2),
+
+            unknownSpend: round($unknownSpend, 2),
+
+            potentialRecovery: round($potentialRecovery, 2),
 
             recurring: $this->recurringCosts
                 ->detect($transactions),
@@ -94,6 +147,26 @@ class SupplierAnalysisService
             lastSeen: $transactions
                 ->max('transaction_date')
                 ?->toDateString(),
+        );
+    }
+
+    private function spend(
+        Collection $transactions
+    ): float {
+        return abs(
+            (float) $transactions->sum('amount')
+        );
+    }
+
+    private function purposeSpend(
+        Collection $transactions,
+        string $purpose
+    ): float {
+        return $this->spend(
+            $transactions->filter(
+                fn (BankTransaction $transaction) => $transaction->cost_purpose
+                    === $purpose
+            )
         );
     }
 

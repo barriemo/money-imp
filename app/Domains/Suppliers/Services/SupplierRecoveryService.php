@@ -10,15 +10,11 @@ class SupplierRecoveryService
         private SupplierAnalysisService $analysis
     ) {}
 
-    public function leakage(
+    public function potentialRecovery(
         SupplierProfile $supplier
     ): float {
-        if (! $supplier->recoverable) {
-            return 0.0;
-        }
-
         return $this->analysis
             ->analyse($supplier)
-            ->unallocatedSpend;
+            ->potentialRecovery;
     }
 }

@@ -80,46 +80,73 @@
 
     <div class="grid">
         <article class="card">
-            <div>Average monthly spend</div>
+            <div>Client attributed</div>
+
+            <div class="value good">
+                £{{ number_format(
+                    $clientSpend,
+                    2
+                ) }}
+            </div>
+        </article>
+
+        <article class="card">
+            <div>Internal overhead</div>
 
             <div class="value">
                 £{{ number_format(
-                    $totalMonthly,
+                    $internalSpend,
                     2
                 ) }}
             </div>
         </article>
 
         <article class="card">
-            <div>Annualised spend</div>
+            <div>Shared cost</div>
 
             <div class="value">
                 £{{ number_format(
-                    $totalAnnual,
+                    $sharedSpend,
                     2
                 ) }}
             </div>
         </article>
 
         <article class="card">
-            <div>Unallocated spend</div>
+            <div>Waste / cancel</div>
 
             <div class="value warning">
                 £{{ number_format(
-                    $totalUnallocated,
+                    $wasteSpend,
                     2
                 ) }}
             </div>
         </article>
 
         <article class="card">
-            <div>Recoverable leakage</div>
+            <div>Still unknown</div>
 
             <div class="value warning">
                 £{{ number_format(
-                    $recoverableLeakage,
+                    $unknownSpend,
                     2
                 ) }}
+            </div>
+        </article>
+
+        <article class="card">
+            <div>Potential recovery</div>
+
+            <div class="value warning">
+                £{{ number_format(
+                    $potentialRecovery,
+                    2
+                ) }}
+            </div>
+
+            <div class="muted">
+                Recoverable suppliers only,
+                pending review.
             </div>
         </article>
     </div>
@@ -161,14 +188,15 @@
         <thead>
         <tr>
             <th>Supplier</th>
-            <th>Category</th>
             <th>Transactions</th>
-            <th>Avg monthly</th>
-            <th>Annualised</th>
-            <th>Allocated</th>
+            <th>Total</th>
+            <th>Client</th>
+            <th>Internal</th>
+            <th>Shared</th>
+            <th>Waste</th>
             <th>Unknown</th>
             <th>Recurring</th>
-            <th>Last seen</th>
+            <th>Action</th>
         </tr>
         </thead>
 
@@ -176,13 +204,15 @@
         @forelse ($suppliers as $item)
             <tr>
                 <td>
-                    {{ $item->supplier
-                        ->supplier_name }}
-                </td>
+                    <strong>
+                        {{ $item->supplier
+                            ->supplier_name }}
+                    </strong>
 
-                <td>
-                    {{ $item->supplier
-                        ->category ?? '—' }}
+                    <div class="muted">
+                        {{ $item->supplier
+                            ->category ?? '—' }}
+                    </div>
                 </td>
 
                 <td>
@@ -191,28 +221,42 @@
 
                 <td>
                     £{{ number_format(
-                        $item->averageMonthlySpend,
-                        2
-                    ) }}
-                </td>
-
-                <td>
-                    £{{ number_format(
-                        $item->annualisedSpend,
+                        $item->totalSpend,
                         2
                     ) }}
                 </td>
 
                 <td class="good">
                     £{{ number_format(
-                        $item->allocatedSpend,
+                        $item->clientSpend,
+                        2
+                    ) }}
+                </td>
+
+                <td>
+                    £{{ number_format(
+                        $item->internalSpend,
+                        2
+                    ) }}
+                </td>
+
+                <td>
+                    £{{ number_format(
+                        $item->sharedSpend,
                         2
                     ) }}
                 </td>
 
                 <td class="warning">
                     £{{ number_format(
-                        $item->unallocatedSpend,
+                        $item->wasteSpend,
+                        2
+                    ) }}
+                </td>
+
+                <td class="warning">
+                    £{{ number_format(
+                        $item->unknownSpend,
                         2
                     ) }}
                 </td>
@@ -224,22 +268,18 @@
                 </td>
 
                 <td>
-                    {{ $item->lastSeen ?? '—' }}
-
-                    <div style="margin-top: 6px;">
-                        <a href="{{ route(
-                            'suppliers.transactions.index',
-                            $item->supplier
-                        ) }}">
-                            View transactions
-                        </a>
-                    </div>
+                    <a href="{{ route(
+                        'suppliers.transactions.index',
+                        $item->supplier
+                    ) }}">
+                        Review
+                    </a>
                 </td>
             </tr>
         @empty
             <tr>
-                <td colspan="9">
-                    No suppliers configured yet.
+                <td colspan="10">
+                    No suppliers configured.
                 </td>
             </tr>
         @endforelse

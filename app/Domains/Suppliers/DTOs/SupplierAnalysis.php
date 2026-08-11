@@ -14,7 +14,12 @@ readonly class SupplierAnalysis
         public float $averageMonthlySpend,
         public float $annualisedSpend,
         public float $allocatedSpend,
-        public float $unallocatedSpend,
+        public float $clientSpend,
+        public float $internalSpend,
+        public float $sharedSpend,
+        public float $wasteSpend,
+        public float $unknownSpend,
+        public float $potentialRecovery,
         public bool $recurring,
         public ?string $lastSeen,
     ) {}

@@ -75,11 +75,76 @@ class SupplierIntelligenceTest extends TestCase
 
         $this->assertSame(
             180.0,
-            $analysis->unallocatedSpend
+            $analysis->unknownSpend
         );
 
         $this->assertTrue(
             $analysis->recurring
+        );
+    }
+
+    public function test_reviewed_costs_reduce_unknown_spend(): void
+    {
+        $account = BankAccount::factory()->create();
+
+        $supplier = SupplierProfile::create([
+            'supplier_name' => 'EUKhost',
+            'supplier_key' => 'eukhost',
+            'category' => 'hosting',
+            'recoverable' => true,
+            'active' => true,
+        ]);
+
+        BankTransaction::create([
+            'bank_account_id' => $account->id,
+            'transaction_date' => '2026-08-01',
+            'amount' => -100,
+            'currency' => 'GBP',
+            'description' => 'EUKHOST LIMITED',
+            'transaction_hash' => hash(
+                'sha256',
+                'eukhost-known'
+            ),
+            'match_status' => 'unmatched',
+            'cost_purpose' => 'internal',
+            'cost_review_status' => 'reviewed',
+        ]);
+
+        BankTransaction::create([
+            'bank_account_id' => $account->id,
+            'transaction_date' => '2026-08-02',
+            'amount' => -50,
+            'currency' => 'GBP',
+            'description' => 'EUKHOST LIMITED',
+            'transaction_hash' => hash(
+                'sha256',
+                'eukhost-unknown'
+            ),
+            'match_status' => 'unmatched',
+        ]);
+
+        $analysis = app(
+            SupplierAnalysisService::class
+        )->analyse($supplier);
+
+        $this->assertSame(
+            150.0,
+            $analysis->totalSpend
+        );
+
+        $this->assertSame(
+            100.0,
+            $analysis->internalSpend
+        );
+
+        $this->assertSame(
+            50.0,
+            $analysis->unknownSpend
+        );
+
+        $this->assertSame(
+            50.0,
+            $analysis->potentialRecovery
         );
     }
 }
