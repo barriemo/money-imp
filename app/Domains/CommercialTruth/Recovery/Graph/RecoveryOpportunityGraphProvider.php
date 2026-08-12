@@ -2,17 +2,17 @@
 
 namespace App\Domains\CommercialTruth\Recovery\Graph;
 
-use App\Domains\CommercialTruth\Recovery\RecoveryOpportunityFinder;
+use App\Domains\CommercialTruth\Recovery\WorkRecoveryReasoner;
 use App\Domains\TruthGraph\Contracts\TruthGraphProvider;
 use App\Domains\TruthGraph\TruthGraphContribution;
 use App\Domains\TruthGraph\TruthGraphEdge;
 use App\Domains\TruthGraph\TruthGraphNode;
-use App\Models\Client;
+use App\Models\WorkLog;
 
 class RecoveryOpportunityGraphProvider implements TruthGraphProvider
 {
     public function __construct(
-        private RecoveryOpportunityFinder $finder
+        private WorkRecoveryReasoner $reasoner
     ) {}
 
     public function supports(
@@ -24,52 +24,51 @@ class RecoveryOpportunityGraphProvider implements TruthGraphProvider
     public function build(
         string $rootId
     ): TruthGraphContribution {
-        $opportunities =
-            $this->finder->find(
-                Client::findOrFail($rootId)
-            );
-
         $nodes = collect();
+
         $edges = collect();
 
-        foreach ($opportunities as $opportunity) {
-            $node =
-                new TruthGraphNode(
-                    type: 'recovery_opportunity',
+        WorkLog::query()
+            ->where('client_id', $rootId)
+            ->get()
+            ->each(function (WorkLog $workLog) use (
+                $nodes,
+                $edges,
+                $rootId
+            ): void {
+                $assessment =
+                    $this->reasoner->assess(
+                        $workLog
+                    );
 
-                    id: $opportunity->workLogId,
+                $recoveryNode =
+                    new TruthGraphNode(
+                        type: 'work_recovery',
+                        id: $workLog->id,
+                        label: $assessment->state,
+                        attributes: [
+                            'value' => $assessment->value,
+                            'reason' => $assessment->reason,
+                        ],
+                        confidence: $assessment->confidence
+                    );
 
-                    label: 'recovery_required',
-
-                    attributes: [
-                        'value' => $opportunity->value,
-
-                        'reason' => $opportunity->reason,
-                    ],
-
-                    confidence: $opportunity->confidence
+                $nodes->push(
+                    $recoveryNode
                 );
 
-            $nodes->push(
-                $node
-            );
-
-            $edges->push(
-                new TruthGraphEdge(
-                    from: 'client:'.$rootId,
-
-                    to: $node->key(),
-
-                    relationship: 'has_recovery_opportunity',
-
-                    confidence: $opportunity->confidence
-                )
-            );
-        }
+                $edges->push(
+                    new TruthGraphEdge(
+                        from: 'client:'.$rootId,
+                        to: $recoveryNode->key(),
+                        relationship: 'has_recovery_state',
+                        confidence: $assessment->confidence
+                    )
+                );
+            });
 
         return new TruthGraphContribution(
             nodes: $nodes,
-
             edges: $edges
         );
     }

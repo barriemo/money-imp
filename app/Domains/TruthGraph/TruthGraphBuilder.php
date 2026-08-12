@@ -3,7 +3,7 @@
 namespace App\Domains\TruthGraph;
 
 use App\Domains\CommercialTruth\Graph\CommercialTruthGraphProvider;
-use App\Domains\CommercialTruth\Recovery\Graph\WorkRecoveryGraphProvider;
+use App\Domains\CommercialTruth\Recovery\Graph\RecoveryOpportunityGraphProvider;
 use App\Domains\Infrastructure\Graph\InfrastructureTruthGraphProvider;
 use App\Domains\RevenueTruth\Graph\RevenueTruthGraphProvider;
 use App\Domains\TruthGraph\Contracts\TruthGraphProvider;
@@ -17,7 +17,7 @@ class TruthGraphBuilder
         private InfrastructureTruthGraphProvider $infrastructureTruth,
         private RevenueTruthGraphProvider $revenueTruth,
         private WorkEvidenceGraphProvider $workEvidence,
-        private WorkRecoveryGraphProvider $workRecovery
+        private RecoveryOpportunityGraphProvider $recoveryOpportunity
     ) {}
 
     public function buildForClient(
@@ -84,7 +84,7 @@ class TruthGraphBuilder
             $this->commercialTruth,
             $this->infrastructureTruth,
             $this->workEvidence,
-            $this->workRecovery,
+            $this->recoveryOpportunity,
             $this->revenueTruth,
         ];
     }
