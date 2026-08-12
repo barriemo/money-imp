@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Domains\Evidence\EvidenceRepository;
 use App\Domains\EvidenceAcquisition\EvidenceAcquisitionEngine;
 use App\Domains\EvidenceAcquisition\Providers\FinancialEvidenceProvider;
 use App\Domains\EvidenceAcquisition\Providers\InfrastructureEvidenceProvider;
@@ -12,6 +13,10 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton(
+            EvidenceRepository::class
+        );
+
         $this->app->singleton(
             EvidenceAcquisitionEngine::class,
             function ($app): EvidenceAcquisitionEngine {
