@@ -4,6 +4,7 @@ namespace App\Domains\TruthGraph;
 
 use App\Domains\CommercialTruth\Graph\CommercialTruthGraphProvider;
 use App\Domains\Infrastructure\Graph\InfrastructureTruthGraphProvider;
+use App\Domains\RevenueTruth\Graph\RevenueTruthGraphProvider;
 use App\Domains\TruthGraph\Contracts\TruthGraphProvider;
 use App\Models\Client;
 
@@ -11,7 +12,8 @@ class TruthGraphBuilder
 {
     public function __construct(
         private CommercialTruthGraphProvider $commercialTruth,
-        private InfrastructureTruthGraphProvider $infrastructureTruth
+        private InfrastructureTruthGraphProvider $infrastructureTruth,
+        private RevenueTruthGraphProvider $revenueTruth
     ) {}
 
     public function buildForClient(
@@ -77,6 +79,7 @@ class TruthGraphBuilder
         return [
             $this->commercialTruth,
             $this->infrastructureTruth,
+            $this->revenueTruth,
         ];
     }
 }
