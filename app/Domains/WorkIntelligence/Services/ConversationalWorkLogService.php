@@ -3,16 +3,19 @@
 namespace App\Domains\WorkIntelligence\Services;
 
 use App\Domains\WorkIntelligence\Analysis\BillabilityReasoner;
+use App\Domains\WorkIntelligence\Splitting\WorkActivitySplitter;
 use App\Domains\WorkIntelligence\WorkObservationCollection;
 use App\Models\Client;
 use App\Models\User;
 use App\Models\WorkLog;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 
 class ConversationalWorkLogService
 {
     public function __construct(
         private BillabilityReasoner $reasoner,
+        private WorkActivitySplitter $splitter,
     ) {}
 
     public function create(
@@ -64,5 +67,61 @@ class ConversationalWorkLogService
 
             'commercial_notes' => $assessment->reason,
         ]);
+    }
+
+    public function createMany(
+        Client $client,
+        User $user,
+        WorkObservationCollection $observations,
+        Carbon $performedAt
+    ): Collection {
+        $assessment =
+            $this->reasoner->assess(
+                $observations
+            );
+
+        $activities =
+            $this->splitter->split(
+                $observations
+            );
+
+        $rate = 95.00;
+
+        return $activities->items->map(
+            function ($activity) use (
+                $client,
+                $user,
+                $performedAt,
+                $assessment,
+                $rate
+            ) {
+                return WorkLog::create([
+                    'client_id' => $client->id,
+
+                    'user_id' => $user->id,
+
+                    'description' => $activity->description,
+
+                    'minutes' => $activity->minutes,
+
+                    'performed_at' => $performedAt,
+
+                    'billing_hint' => $assessment->billable
+                        ? 'billable'
+                        : 'unsure',
+
+                    'commercial_status' => 'unreviewed',
+
+                    'rate_snapshot' => $rate,
+
+                    'commercial_value' => round(
+                        ($activity->minutes / 60) * $rate,
+                        2
+                    ),
+
+                    'commercial_notes' => $assessment->reason,
+                ]);
+            }
+        );
     }
 }
