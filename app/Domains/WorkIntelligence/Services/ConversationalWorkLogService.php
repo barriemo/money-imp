@@ -3,6 +3,7 @@
 namespace App\Domains\WorkIntelligence\Services;
 
 use App\Domains\WorkIntelligence\Analysis\BillabilityReasoner;
+use App\Domains\WorkIntelligence\Evidence\WorkLogEvidenceService;
 use App\Domains\WorkIntelligence\Splitting\WorkActivitySplitter;
 use App\Domains\WorkIntelligence\WorkObservationCollection;
 use App\Models\Client;
@@ -16,6 +17,7 @@ class ConversationalWorkLogService
     public function __construct(
         private BillabilityReasoner $reasoner,
         private WorkActivitySplitter $splitter,
+        private WorkLogEvidenceService $evidence,
     ) {}
 
     public function create(
@@ -32,7 +34,7 @@ class ConversationalWorkLogService
 
         $rate = 95.00;
 
-        return WorkLog::create([
+        $workLog = WorkLog::create([
             'client_id' => $client->id,
 
             'user_id' => $user->id,
@@ -67,6 +69,12 @@ class ConversationalWorkLogService
 
             'commercial_notes' => $assessment->reason,
         ]);
+
+        $this->evidence->create(
+            $workLog
+        );
+
+        return $workLog;
     }
 
     public function createMany(
@@ -95,7 +103,7 @@ class ConversationalWorkLogService
                 $assessment,
                 $rate
             ) {
-                return WorkLog::create([
+                $workLog = WorkLog::create([
                     'client_id' => $client->id,
 
                     'user_id' => $user->id,
@@ -121,6 +129,12 @@ class ConversationalWorkLogService
 
                     'commercial_notes' => $assessment->reason,
                 ]);
+
+                $this->evidence->create(
+                    $workLog
+                );
+
+                return $workLog;
             }
         );
     }
