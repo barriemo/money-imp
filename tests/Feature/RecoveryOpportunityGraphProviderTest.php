@@ -2,31 +2,29 @@
 
 namespace Tests\Feature;
 
-use App\Domains\CommercialTruth\Recovery\Graph\RecoveryOpportunityGraphProvider;
+use App\Domains\CommercialTruth\Recovery\Graph\WorkRecoveryGraphProvider;
 use App\Models\Client;
 use App\Models\User;
 use App\Models\WorkLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-class RecoveryOpportunityGraphProviderTest extends TestCase
+class WorkRecoveryGraphProviderTest extends TestCase
 {
     use RefreshDatabase;
 
     public function test_unrecovered_work_contributes_recovery_state(): void
     {
-        $client =
-            Client::factory()->create();
+        $client = Client::factory()->create();
 
-        $user =
-            User::factory()->create();
+        $user = User::factory()->create();
 
         WorkLog::create([
             'client_id' => $client->id,
 
             'user_id' => $user->id,
 
-            'description' => 'Completed CRM integration',
+            'description' => 'Fixed Walker CRM integration',
 
             'minutes' => 120,
 
@@ -43,10 +41,11 @@ class RecoveryOpportunityGraphProviderTest extends TestCase
 
         $graph =
             app(
-                RecoveryOpportunityGraphProvider::class
-            )->build(
-                $client->id
-            );
+                WorkRecoveryGraphProvider::class
+            )
+                ->build(
+                    $client->id
+                );
 
         $this->assertCount(
             1,
