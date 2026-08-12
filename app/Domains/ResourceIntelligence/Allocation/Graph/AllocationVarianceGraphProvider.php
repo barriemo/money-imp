@@ -2,7 +2,8 @@
 
 namespace App\Domains\ResourceIntelligence\Allocation\Graph;
 
-use App\Domains\ResourceIntelligence\Allocation\Summary\AllocationVarianceSummary;
+use App\Domains\ResourceIntelligence\Allocation\AllocationVarianceRepository;
+use App\Domains\ResourceIntelligence\Allocation\Summary\AllocationVarianceSummariser;
 use App\Domains\TruthGraph\Contracts\TruthGraphProvider;
 use App\Domains\TruthGraph\TruthGraphContribution;
 use App\Domains\TruthGraph\TruthGraphEdge;
@@ -11,7 +12,8 @@ use App\Domains\TruthGraph\TruthGraphNode;
 class AllocationVarianceGraphProvider implements TruthGraphProvider
 {
     public function __construct(
-        private AllocationVarianceSummary $summary
+        private AllocationVarianceRepository $repository,
+        private AllocationVarianceSummariser $summariser
     ) {}
 
     public function supports(
@@ -23,6 +25,13 @@ class AllocationVarianceGraphProvider implements TruthGraphProvider
     public function build(
         string $rootId
     ): TruthGraphContribution {
+        $summary =
+            $this->summariser->summarise(
+                $this->repository->findForClient(
+                    $rootId
+                )
+            );
+
         $varianceNode =
             new TruthGraphNode(
                 type: 'allocation_variance',
@@ -32,11 +41,11 @@ class AllocationVarianceGraphProvider implements TruthGraphProvider
                 label: 'Resource allocation variance',
 
                 attributes: [
-                    'overrun_hours' => $this->summary->totalOverrunHours,
+                    'overrun_hours' => $summary->totalOverrunHours,
 
-                    'cost_exposure' => $this->summary->totalCostExposure,
+                    'cost_exposure' => $summary->totalCostExposure,
 
-                    'highest_risk_resource' => $this->summary->highestRiskResource,
+                    'highest_risk_resource' => $summary->highestRiskResource,
                 ],
 
                 confidence: 90
