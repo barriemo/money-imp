@@ -24,7 +24,7 @@ class AllocationAttentionProvider implements AttentionSignalProvider
 
         $signal =
             $this->builder->build(
-                'Business',
+                $context->client,
                 $context->allocation
             );
 

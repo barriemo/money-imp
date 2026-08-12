@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Domains\BusinessBrain\Attention\AttentionSignalCollector;
+use App\Domains\BusinessBrain\Attention\Builders\VATAttentionProvider;
+use App\Domains\BusinessBrain\Attention\Providers\AllocationAttentionProvider;
+use App\Domains\BusinessBrain\Attention\Providers\RecoveryAttentionProvider;
 use App\Domains\Evidence\EvidenceRepository;
 use App\Domains\EvidenceAcquisition\EvidenceAcquisitionEngine;
 use App\Domains\EvidenceAcquisition\Providers\FinancialEvidenceProvider;
@@ -26,6 +30,25 @@ class AppServiceProvider extends ServiceProvider
             AllocationVarianceRepository::class,
             function () {
                 return new AllocationVarianceRepository;
+            }
+        );
+
+        $this->app->singleton(
+            AttentionSignalCollector::class,
+            function ($app): AttentionSignalCollector {
+                return new AttentionSignalCollector([
+                    $app->make(
+                        RecoveryAttentionProvider::class
+                    ),
+
+                    $app->make(
+                        AllocationAttentionProvider::class
+                    ),
+
+                    $app->make(
+                        VATAttentionProvider::class
+                    ),
+                ]);
             }
         );
 

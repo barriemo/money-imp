@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Domains\BusinessBrain\Attention\AttentionSignalCollector;
+use App\Domains\BusinessBrain\Attention\Context\AttentionContext;
 use App\Domains\CommercialTruth\Recovery\RecoveryOpportunitySummary;
 use App\Domains\ResourceIntelligence\Allocation\Summary\AllocationVarianceSummary;
 use Tests\TestCase;
@@ -15,28 +16,30 @@ class AttentionSignalCollectorTest extends TestCase
             app(
                 AttentionSignalCollector::class
             )->collect(
-                'Walker',
+                new AttentionContext(
+                    client: 'Walker',
 
-                new RecoveryOpportunitySummary(
-                    clientId: 'Walker',
+                    recovery: new RecoveryOpportunitySummary(
+                        clientId: 'Walker',
 
-                    opportunityCount: 3,
+                        opportunityCount: 3,
 
-                    totalValue: 2090,
+                        totalValue: 2090,
 
-                    highestValue: 1000,
+                        highestValue: 1000,
 
-                    confidence: 90
-                ),
+                        confidence: 90
+                    ),
 
-                new AllocationVarianceSummary(
-                    totalOverrunHours: 25,
+                    allocation: new AllocationVarianceSummary(
+                        totalOverrunHours: 25,
 
-                    totalCostExposure: 1625,
+                        totalCostExposure: 1625,
 
-                    highestRiskResource: 'John Smith',
+                        highestRiskResource: 'John Smith',
 
-                    attentionRequired: true
+                        attentionRequired: true
+                    )
                 )
             );
 
