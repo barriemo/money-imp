@@ -2,14 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\Domains\CommercialTruth\Recovery\Graph\WorkRecoveryGraphProvider;
+use App\Domains\CommercialTruth\Recovery\Graph\RecoveryOpportunityGraphProvider;
 use App\Models\Client;
 use App\Models\User;
 use App\Models\WorkLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-class WorkRecoveryGraphProviderTest extends TestCase
+class RecoveryOpportunityGraphProviderTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -41,7 +41,7 @@ class WorkRecoveryGraphProviderTest extends TestCase
 
         $graph =
             app(
-                WorkRecoveryGraphProvider::class
+                RecoveryOpportunityGraphProvider::class
             )
                 ->build(
                     $client->id
