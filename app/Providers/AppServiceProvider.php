@@ -7,12 +7,20 @@ use App\Domains\EvidenceAcquisition\EvidenceAcquisitionEngine;
 use App\Domains\EvidenceAcquisition\Providers\FinancialEvidenceProvider;
 use App\Domains\EvidenceAcquisition\Providers\InfrastructureEvidenceProvider;
 use App\Domains\EvidenceAcquisition\Ranking\EvidenceQueueBuilder;
+use App\Domains\ResourceIntelligence\Attribution\ResourceContributionRepository;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton(
+            ResourceContributionRepository::class,
+            function () {
+                return new ResourceContributionRepository;
+            }
+        );
+
         $this->app->singleton(
             EvidenceRepository::class
         );
