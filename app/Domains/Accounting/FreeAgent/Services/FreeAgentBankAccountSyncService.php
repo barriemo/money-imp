@@ -2,6 +2,7 @@
 
 namespace App\Domains\Accounting\FreeAgent\Services;
 
+use App\Domains\FinancialTruth\Services\BankBalanceEvidenceService;
 use App\Models\BankAccount;
 use App\Models\ExternalConnection;
 use App\Models\ExternalRecord;
@@ -13,6 +14,7 @@ class FreeAgentBankAccountSyncService
 {
     public function __construct(
         private readonly FreeAgentClient $client,
+        private readonly BankBalanceEvidenceService $balanceEvidence,
     ) {}
 
     public function sync(ExternalConnection $connection): SyncRun
@@ -70,6 +72,25 @@ class FreeAgentBankAccountSyncService
                 } else {
                     $account = BankAccount::create($attributes);
                     $run->increment('records_created');
+                }
+
+                if (
+                    array_key_exists(
+                        'current_balance',
+                        $source
+                    )
+                    && $source['current_balance'] !== null
+                    && isset(
+                        $source['updated_at']
+                    )
+                ) {
+                    $this->balanceEvidence
+                        ->capture(
+                            account: $account,
+                            balance: (float) $source['current_balance'],
+                            balanceAt: $source['updated_at'],
+                            source: 'freeagent'
+                        );
                 }
 
                 ExternalRecord::updateOrCreate(
