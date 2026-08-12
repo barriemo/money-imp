@@ -6,6 +6,7 @@ use App\Domains\CommercialTruth\Graph\CommercialTruthGraphProvider;
 use App\Domains\Infrastructure\Graph\InfrastructureTruthGraphProvider;
 use App\Domains\RevenueTruth\Graph\RevenueTruthGraphProvider;
 use App\Domains\TruthGraph\Contracts\TruthGraphProvider;
+use App\Domains\WorkIntelligence\Graph\WorkEvidenceGraphProvider;
 use App\Models\Client;
 
 class TruthGraphBuilder
@@ -13,7 +14,8 @@ class TruthGraphBuilder
     public function __construct(
         private CommercialTruthGraphProvider $commercialTruth,
         private InfrastructureTruthGraphProvider $infrastructureTruth,
-        private RevenueTruthGraphProvider $revenueTruth
+        private RevenueTruthGraphProvider $revenueTruth,
+        private WorkEvidenceGraphProvider $workEvidence
     ) {}
 
     public function buildForClient(
@@ -79,6 +81,7 @@ class TruthGraphBuilder
         return [
             $this->commercialTruth,
             $this->infrastructureTruth,
+            $this->workEvidence,
             $this->revenueTruth,
         ];
     }
