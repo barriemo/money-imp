@@ -5,7 +5,7 @@ namespace App\Domains\BusinessBrain\Attention\Context;
 class AttentionContext
 {
     public function __construct(
-        public string $client,
+        public string $client = 'unknown',
 
         public mixed $recovery = null,
 

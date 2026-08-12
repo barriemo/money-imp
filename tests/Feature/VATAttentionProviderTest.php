@@ -16,6 +16,8 @@ class VATAttentionProviderTest extends TestCase
                 VATAttentionProvider::class
             )->provide(
                 new AttentionContext(
+                    client: 'Walker',
+
                     vat: new VATExposure(
                         liability: 30000,
 

@@ -16,6 +16,8 @@ class AllocationAttentionProviderTest extends TestCase
                 AllocationAttentionProvider::class
             )->provide(
                 new AttentionContext(
+                    client: 'Walker',
+
                     allocation: new AllocationVarianceSummary(
                         totalOverrunHours: 25,
 

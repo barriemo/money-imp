@@ -16,6 +16,8 @@ class RecoveryAttentionProviderTest extends TestCase
                 RecoveryAttentionProvider::class
             )->provide(
                 new AttentionContext(
+                    client: 'Walker',
+
                     recovery: new RecoveryOpportunitySummary(
                         clientId: 'Walker',
 
