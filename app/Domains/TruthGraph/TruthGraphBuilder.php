@@ -5,6 +5,8 @@ namespace App\Domains\TruthGraph;
 use App\Domains\CommercialTruth\Graph\CommercialTruthGraphProvider;
 use App\Domains\CommercialTruth\Recovery\Graph\RecoveryOpportunityGraphProvider;
 use App\Domains\Infrastructure\Graph\InfrastructureTruthGraphProvider;
+use App\Domains\ResourceIntelligence\Allocation\Graph\AllocationVarianceGraphProvider;
+use App\Domains\ResourceIntelligence\Graph\ResourceContributionGraphProvider;
 use App\Domains\RevenueTruth\Graph\RevenueTruthGraphProvider;
 use App\Domains\TruthGraph\Contracts\TruthGraphProvider;
 use App\Domains\WorkIntelligence\Graph\WorkEvidenceGraphProvider;
@@ -17,7 +19,9 @@ class TruthGraphBuilder
         private InfrastructureTruthGraphProvider $infrastructureTruth,
         private RevenueTruthGraphProvider $revenueTruth,
         private WorkEvidenceGraphProvider $workEvidence,
-        private RecoveryOpportunityGraphProvider $recoveryOpportunity
+        private RecoveryOpportunityGraphProvider $recoveryOpportunity,
+        private ResourceContributionGraphProvider $resourceContribution,
+        private AllocationVarianceGraphProvider $allocationVariance
     ) {}
 
     public function buildForClient(
@@ -85,6 +89,8 @@ class TruthGraphBuilder
             $this->infrastructureTruth,
             $this->workEvidence,
             $this->recoveryOpportunity,
+            $this->resourceContribution,
+            $this->allocationVariance,
             $this->revenueTruth,
         ];
     }

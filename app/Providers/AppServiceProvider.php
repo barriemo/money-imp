@@ -7,6 +7,7 @@ use App\Domains\EvidenceAcquisition\EvidenceAcquisitionEngine;
 use App\Domains\EvidenceAcquisition\Providers\FinancialEvidenceProvider;
 use App\Domains\EvidenceAcquisition\Providers\InfrastructureEvidenceProvider;
 use App\Domains\EvidenceAcquisition\Ranking\EvidenceQueueBuilder;
+use App\Domains\ResourceIntelligence\Allocation\AllocationVarianceRepository;
 use App\Domains\ResourceIntelligence\Attribution\ResourceContributionRepository;
 use Illuminate\Support\ServiceProvider;
 
@@ -18,6 +19,13 @@ class AppServiceProvider extends ServiceProvider
             ResourceContributionRepository::class,
             function () {
                 return new ResourceContributionRepository;
+            }
+        );
+
+        $this->app->singleton(
+            AllocationVarianceRepository::class,
+            function () {
+                return new AllocationVarianceRepository;
             }
         );
 
