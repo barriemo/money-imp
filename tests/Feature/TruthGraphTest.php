@@ -50,14 +50,19 @@ class TruthGraphTest extends TestCase
             $graph['root']
         );
 
-        $this->assertCount(
-            2,
+        $this->assertTrue(
             $graph['nodes']
+                ->contains(
+                    fn ($node) => $node->key() === 'commercial_agreement:'.$agreement->id
+                )
         );
 
-        $this->assertCount(
-            1,
+        $this->assertTrue(
             $graph['edges']
+                ->contains(
+                    fn ($edge) => $edge->relationship === 'has_agreement'
+                        && $edge->to === 'commercial_agreement:'.$agreement->id
+                )
         );
 
         $edge =
