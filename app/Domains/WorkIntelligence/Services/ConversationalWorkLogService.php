@@ -4,7 +4,6 @@ namespace App\Domains\WorkIntelligence\Services;
 
 use App\Domains\WorkIntelligence\Analysis\BillabilityReasoner;
 use App\Domains\WorkIntelligence\WorkObservationCollection;
-use App\Domains\WorkIntelligence\WorkObservationCollection;
 use App\Models\Client;
 use App\Models\User;
 use App\Models\WorkLog;
