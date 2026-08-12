@@ -10,27 +10,41 @@ class EvidenceAcquisitionTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_engine_returns_high_priority_questions(): void
+    public function test_engine_returns_ranked_questions(): void
     {
         $questions =
             app(
                 EvidenceAcquisitionEngine::class
-            )
-                ->questions();
+            )->questions();
 
         $this->assertNotEmpty(
             $questions
         );
 
-        $this->assertSame(
-            100,
+        $this->assertGreaterThan(
+            0,
             $questions->first()->priority
+        );
+
+        $priorities =
+            $questions
+                ->pluck('priority')
+                ->values();
+
+        $this->assertSame(
+            $priorities
+                ->sortDesc()
+                ->values()
+                ->all(),
+            $priorities->all()
         );
 
         $this->assertStringContainsString(
             'bank',
             strtolower(
-                $questions->first()->question
+                $questions
+                    ->first()
+                    ->question
             )
         );
     }
