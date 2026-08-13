@@ -2,6 +2,7 @@
 
 namespace App\Domains\CheerfulCharlie\Review;
 
+use App\Models\CharlieFinding;
 use App\Models\CharlieReview;
 use App\Models\Client;
 use Illuminate\Support\Facades\DB;
@@ -74,8 +75,8 @@ class CharlieReviewEngine
                 );
 
                 if ($previous) {
-                    $this->finalisePreviousFindings(
-                        $previous,
+                    $this->finaliseHistoricalFindings(
+                        $client,
                         $review
                     );
                 }
@@ -85,14 +86,10 @@ class CharlieReviewEngine
         );
     }
 
-    private function finalisePreviousFindings(
-        CharlieReview $previous,
+    private function finaliseHistoricalFindings(
+        Client $client,
         CharlieReview $current
     ): void {
-        $previous->loadMissing(
-            'findings'
-        );
-
         $current->loadMissing(
             'findings'
         );
@@ -109,23 +106,40 @@ class CharlieReviewEngine
                     ]
                 );
 
-        foreach (
-            $previous->findings as $finding
-        ) {
-            $fingerprint =
-                $this->fingerprints
-                    ->make(
-                        $finding->toArray()
-                    );
+        CharlieFinding::query()
+            ->where(
+                'client_id',
+                $client->id
+            )
+            ->where(
+                'status',
+                'open'
+            )
+            ->where(
+                'charlie_review_id',
+                '!=',
+                $current->id
+            )
+            ->get()
+            ->each(
+                function ($finding) use (
+                    $currentFingerprints
+                ): void {
+                    $fingerprint =
+                        $this->fingerprints
+                            ->make(
+                                $finding->toArray()
+                            );
 
-            $finding->update([
-                'status' => $currentFingerprints
-                    ->has(
-                        $fingerprint
-                    )
-                        ? 'superseded'
-                        : 'resolved',
-            ]);
-        }
+                    $finding->update([
+                        'status' => $currentFingerprints
+                            ->has(
+                                $fingerprint
+                            )
+                                ? 'superseded'
+                                : 'resolved',
+                    ]);
+                }
+            );
     }
 }
