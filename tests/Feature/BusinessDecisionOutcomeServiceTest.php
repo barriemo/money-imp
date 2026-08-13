@@ -213,4 +213,54 @@ class BusinessDecisionOutcomeServiceTest extends TestCase
             $outcome
         );
     }
+
+    public function test_completed_decision_is_written_to_executive_memory(): void
+    {
+        $service =
+            app(
+                BusinessDecisionOutcomeService::class
+            );
+
+        $outcome =
+            $service->record(
+                new BusinessDecision(
+                    type: 'collections',
+
+                    clientId: 'client-memory',
+
+                    client: 'Memory Client',
+
+                    action: 'Chase overdue balance.',
+
+                    reason: '£5,000 is overdue.',
+
+                    priority: 90,
+
+                    value: 5000,
+
+                    confidence: 100
+                )
+            );
+
+        $service->complete(
+            outcome: $outcome,
+
+            result: 'Client paid outstanding balance.',
+
+            financialResult: 5000
+        );
+
+        $this->assertDatabaseHas(
+            'business_memory_events',
+            [
+                'source_type' => 'business_decision_outcome',
+
+                'source_id' => $outcome->id,
+
+                'client' => 'Memory Client',
+
+                'type' => 'decision_outcome',
+            ]
+        );
+    }
 }

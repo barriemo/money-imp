@@ -4,10 +4,12 @@ namespace App\Domains\BusinessBrain\Interrogation;
 
 use App\Domains\BusinessBrain\Attention\Context\AttentionContext;
 use App\Domains\BusinessBrain\Decisions\BusinessDecisionService;
+use App\Domains\BusinessBrain\Decisions\Outcomes\BusinessDecisionOutcomeService;
 use App\Domains\BusinessBrain\Interrogation\Attention\ClientAttentionService;
 use App\Domains\BusinessBrain\Interrogation\Coverage\BusinessCoverageSummaryService;
 use App\Domains\BusinessBrain\Interrogation\Coverage\BusinessTruthCoverageService;
 use App\Domains\BusinessBrain\Interrogation\Position\BusinessPositionService;
+use App\Domains\BusinessBrain\Memory\BusinessMemoryEventService;
 use App\Domains\BusinessBrain\MorningBrief\Services\MorningBriefService;
 use App\Domains\BusinessBrain\Observations\BusinessObservationService;
 use App\Models\Client;
@@ -28,7 +30,11 @@ class BusinessInterrogator
 
         private BusinessDecisionService $decisions,
 
-        private BusinessObservationService $observations
+        private BusinessObservationService $observations,
+
+        private BusinessDecisionOutcomeService $decisionOutcomes,
+
+        private BusinessMemoryEventService $memory
     ) {}
 
     public function ask(
@@ -149,6 +155,41 @@ class BusinessInterrogator
             )
         ) {
             return $this->whatChanged(
+                $question
+            );
+        }
+
+        if (
+            in_array(
+                $normalised,
+                [
+                    'what happened to our recommendations?',
+                    'what happened to our recommendations',
+                    'how have our recommendations performed?',
+                    'how have our recommendations performed',
+                    'what happened to our decisions?',
+                    'what happened to our decisions',
+                ],
+                true
+            )
+        ) {
+            return $this->recommendationOutcomes(
+                $question
+            );
+        }
+
+        if (
+            str_starts_with(
+                $normalised,
+                'what happened with '
+            )
+            ||
+            str_starts_with(
+                $normalised,
+                'what happened to '
+            )
+        ) {
+            return $this->clientHistory(
                 $question
             );
         }
@@ -643,6 +684,11 @@ class BusinessInterrogator
                 )
                 ->values();
 
+        $this->decisionOutcomes
+            ->recordToday(
+                $decisions
+            );
+
         if ($decisions->isEmpty()) {
             return new BusinessAnswer(
                 question: $question->question,
@@ -927,6 +973,222 @@ class BusinessInterrogator
                 ->all(),
 
             confidence: 95,
+
+            asOf: now()
+        );
+    }
+
+    private function recommendationOutcomes(
+        BusinessQuestion $question
+    ): BusinessAnswer {
+        $summary =
+            $this->decisionOutcomes
+                ->summary();
+
+        if ($summary['total'] === 0) {
+            return new BusinessAnswer(
+                question: $question->question,
+
+                answer: 'No recommendation outcomes have been recorded yet. Money Imp can generate decisions, but it does not yet have historical outcome evidence to judge their effectiveness.',
+
+                facts: [
+                    'total' => 0,
+
+                    'pending' => 0,
+
+                    'accepted' => 0,
+
+                    'rejected' => 0,
+
+                    'completed' => 0,
+
+                    'financial_result' => 0.0,
+                ],
+
+                evidence: [],
+
+                confidence: 100,
+
+                asOf: now()
+            );
+        }
+
+        return new BusinessAnswer(
+            question: $question->question,
+
+            answer: sprintf(
+                'Money Imp has tracked %d recommendation outcomes: %d pending, %d accepted, %d rejected and %d completed. Completed recommendations have produced a recorded financial result of £%s.',
+                $summary['total'],
+                $summary['pending'],
+                $summary['accepted'],
+                $summary['rejected'],
+                $summary['completed'],
+                number_format(
+                    $summary['financial_result'],
+                    2
+                )
+            ),
+
+            facts: $summary,
+
+            evidence: [],
+
+            confidence: 100,
+
+            asOf: now()
+        );
+    }
+
+    private function clientHistory(
+        BusinessQuestion $question
+    ): BusinessAnswer {
+        $normalised =
+            $question->normalised();
+
+        $prefix =
+            str_starts_with(
+                $normalised,
+                'what happened with '
+            )
+                ? 'what happened with '
+                : 'what happened to ';
+
+        $name =
+            trim(
+                substr(
+                    $question->question,
+                    strlen(
+                        $prefix
+                    )
+                ),
+                ' ?'
+            );
+
+        $client =
+            Client::query()
+                ->where(
+                    'name',
+                    'like',
+                    '%'.$name.'%'
+                )
+                ->first();
+
+        if (! $client) {
+            return new BusinessAnswer(
+                question: $question->question,
+
+                answer: sprintf(
+                    'I could not find a client matching "%s".',
+                    $name
+                ),
+
+                facts: [
+                    'client_found' => false,
+                ],
+
+                evidence: [],
+
+                confidence: 0,
+
+                asOf: now()
+            );
+        }
+
+        $events =
+            $this->memory
+                ->forClient(
+                    (string) $client->id
+                );
+
+        if ($events->isEmpty()) {
+            return new BusinessAnswer(
+                question: $question->question,
+
+                answer: sprintf(
+                    'Money Imp does not yet have any executive memory events recorded for %s.',
+                    $client->name
+                ),
+
+                facts: [
+                    'client' => $client->name,
+
+                    'event_count' => 0,
+                ],
+
+                evidence: [],
+
+                confidence: 100,
+
+                asOf: now()
+            );
+        }
+
+        $lines =
+            $events
+                ->take(10)
+                ->values()
+                ->map(
+                    fn ($event, int $index) => sprintf(
+                        '%d. %s - %s',
+                        $index + 1,
+                        $event->occurred_at
+                            ->format(
+                                'Y-m-d H:i'
+                            ),
+                        $event->description
+                    )
+                );
+
+        return new BusinessAnswer(
+            question: $question->question,
+
+            answer: sprintf(
+                '%s history:%s%s',
+                $client->name,
+                PHP_EOL.PHP_EOL,
+                $lines->implode(
+                    PHP_EOL
+                )
+            ),
+
+            facts: [
+                'client' => $client->name,
+
+                'event_count' => $events->count(),
+
+                'latest_event_type' => $events
+                    ->first()
+                    ->type,
+
+                'latest_event_value' => $events
+                    ->first()
+                    ->value,
+            ],
+
+            evidence: $events
+                ->map(
+                    fn ($event) => [
+                        'type' => $event->type,
+
+                        'title' => $event->title,
+
+                        'description' => $event->description,
+
+                        'value' => $event->value,
+
+                        'occurred_at' => $event
+                            ->occurred_at
+                            ->toIso8601String(),
+
+                        'source_type' => $event->source_type,
+
+                        'source_id' => $event->source_id,
+                    ]
+                )
+                ->values()
+                ->all(),
+
+            confidence: 100,
 
             asOf: now()
         );

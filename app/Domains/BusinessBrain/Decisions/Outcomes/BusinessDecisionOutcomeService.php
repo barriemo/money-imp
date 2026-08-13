@@ -3,13 +3,16 @@
 namespace App\Domains\BusinessBrain\Decisions\Outcomes;
 
 use App\Domains\BusinessBrain\Decisions\BusinessDecision;
+use App\Domains\BusinessBrain\Memory\BusinessMemoryEventService;
 use App\Models\BusinessDecisionOutcome;
 use Illuminate\Support\Collection;
 
 class BusinessDecisionOutcomeService
 {
     public function __construct(
-        private BusinessDecisionFingerprint $fingerprints
+        private BusinessDecisionFingerprint $fingerprints,
+
+        private BusinessMemoryEventService $memory
     ) {}
 
     public function record(
@@ -121,7 +124,15 @@ class BusinessDecisionOutcomeService
                 ?? now(),
         ]);
 
-        return $outcome->refresh();
+        $outcome =
+            $outcome->refresh();
+
+        $this->memory
+            ->recordDecisionOutcome(
+                $outcome
+            );
+
+        return $outcome;
     }
 
     public function complete(
@@ -160,7 +171,15 @@ class BusinessDecisionOutcomeService
             'completed_at' => now(),
         ]);
 
-        return $outcome->refresh();
+        $outcome =
+            $outcome->refresh();
+
+        $this->memory
+            ->recordDecisionOutcome(
+                $outcome
+            );
+
+        return $outcome;
     }
 
     public function summary(): array

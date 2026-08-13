@@ -55,6 +55,16 @@ class BusinessAskCommand extends Command
                     'what should we do today',
                     'what should i do next?',
                     'what should i do next',
+                    'what changed?',
+                    'what changed',
+                    'what changed since yesterday?',
+                    'what changed since yesterday',
+                    'what happened to our recommendations?',
+                    'what happened to our recommendations',
+                    'how have our recommendations performed?',
+                    'how have our recommendations performed',
+                    'what happened to our decisions?',
+                    'what happened to our decisions',
                 ],
                 true
             )
@@ -62,6 +72,16 @@ class BusinessAskCommand extends Command
             str_starts_with(
                 $normalised,
                 'what do you know about '
+            )
+            ||
+            str_starts_with(
+                $normalised,
+                'what happened with '
+            )
+            ||
+            str_starts_with(
+                $normalised,
+                'what happened to '
             )
         ) {
             $this->present(
