@@ -2,89 +2,75 @@
 
 namespace Tests\Feature;
 
-use App\Domains\BusinessBrain\Attention\Context\AttentionContext;
 use App\Domains\BusinessBrain\Interrogation\BusinessInterrogator;
 use App\Domains\BusinessBrain\Interrogation\BusinessQuestion;
-use App\Domains\CommercialTruth\Recovery\RecoveryOpportunitySummary;
-use App\Domains\ResourceIntelligence\Allocation\Summary\AllocationVarianceSummary;
-use App\Domains\VATIntelligence\VATExposure;
+use App\Models\AccountingInvoice;
+use App\Models\Client;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class BusinessInterrogatorTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_business_can_answer_where_are_we(): void
     {
+        $client =
+            Client::factory()->create([
+                'status' => 'active',
+            ]);
+
+        AccountingInvoice::create([
+            'client_id' => $client->id,
+
+            'invoice_number' => 'INV-001',
+
+            'status' => 'overdue',
+
+            'invoice_date' => now(),
+
+            'due_date' => now()->subDays(7),
+
+            'currency' => 'GBP',
+
+            'net_amount' => 1000,
+
+            'tax_amount' => 200,
+
+            'gross_amount' => 1200,
+
+            'paid_amount' => 200,
+
+            'outstanding_amount' => 1000,
+        ]);
+
         $answer =
             app(
                 BusinessInterrogator::class
             )->ask(
                 new BusinessQuestion(
                     'where are we?'
-                ),
-
-                new AttentionContext(
-                    client: 'Walker',
-
-                    recovery: new RecoveryOpportunitySummary(
-                        clientId: 'Walker',
-
-                        opportunityCount: 2,
-
-                        totalValue: 5000,
-
-                        highestValue: 3000,
-
-                        confidence: 90
-                    ),
-
-                    allocation: new AllocationVarianceSummary(
-                        totalOverrunHours: 25,
-
-                        totalCostExposure: 1625,
-
-                        highestRiskResource: 'John Smith',
-
-                        attentionRequired: true
-                    ),
-
-                    vat: new VATExposure(
-                        liability: 30000,
-
-                        priority: 100,
-
-                        reason: 'VAT liability requires cash planning.'
-                    )
                 )
             );
 
         $this->assertSame(
-            36625.0,
-            $answer->facts['total_exposure']
+            1,
+            $answer->facts['active_clients']
         );
 
         $this->assertSame(
-            5000.0,
-            $answer->facts['recovery_value']
+            1,
+            $answer->facts['invoice_count']
         );
 
         $this->assertSame(
-            1625.0,
-            $answer->facts['allocation_exposure']
+            1200.0,
+            $answer->facts['gross_invoiced']
         );
 
         $this->assertSame(
-            30000.0,
-            $answer->facts['vat_exposure']
-        );
-
-        $this->assertSame(
-            'vat_exposure',
-            $answer->facts['highest_priority_type']
-        );
-
-        $this->assertCount(
-            3,
-            $answer->evidence
+            1000.0,
+            $answer->facts['outstanding']
         );
     }
 }
