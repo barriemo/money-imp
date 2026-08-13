@@ -6,6 +6,7 @@ use App\Domains\BusinessBrain\Attention\AttentionSignalCollector;
 use App\Domains\BusinessBrain\Attention\Builders\VATAttentionProvider;
 use App\Domains\BusinessBrain\Attention\Providers\AllocationAttentionProvider;
 use App\Domains\BusinessBrain\Attention\Providers\RecoveryAttentionProvider;
+use App\Domains\BusinessBrain\MorningBrief\History\MorningBriefSnapshotRepository;
 use App\Domains\Evidence\EvidenceRepository;
 use App\Domains\EvidenceAcquisition\EvidenceAcquisitionEngine;
 use App\Domains\EvidenceAcquisition\Providers\FinancialEvidenceProvider;
@@ -38,6 +39,13 @@ class AppServiceProvider extends ServiceProvider
             VATPositionRepository::class,
             function () {
                 return new VATPositionRepository;
+            }
+        );
+
+        $this->app->singleton(
+            MorningBriefSnapshotRepository::class,
+            function () {
+                return new MorningBriefSnapshotRepository;
             }
         );
 
