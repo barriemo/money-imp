@@ -105,6 +105,12 @@ class BusinessObservationService
 
             'bank_matching' => $decision->client.' has unresolved banking evidence',
 
+            'invoice_delivery' => $decision->client.' has delivered commercial value awaiting invoicing',
+
+            'payment_evidence' => $decision->client.' has accounting payments that require bank verification',
+
+            'delivery_evidence' => $decision->client.' has insufficient delivery evidence',
+
             default => $decision->client.' requires attention',
         };
     }

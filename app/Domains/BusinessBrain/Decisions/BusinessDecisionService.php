@@ -4,27 +4,133 @@ namespace App\Domains\BusinessBrain\Decisions;
 
 use App\Domains\BusinessBrain\Interrogation\Attention\ClientAttentionPosition;
 use App\Domains\BusinessBrain\Interrogation\Attention\ClientAttentionService;
+use App\Domains\BusinessBrain\RevenueTruth\CommercialGap;
+use App\Domains\BusinessBrain\RevenueTruth\RevenueTruthSummaryService;
 use Illuminate\Support\Collection;
 
 class BusinessDecisionService
 {
     public function __construct(
-        private ClientAttentionService $attention
+        private ClientAttentionService $attention,
+
+        private RevenueTruthSummaryService $revenueTruth
     ) {}
 
     public function today(): Collection
     {
-        return $this->attention
-            ->ranked()
-            ->flatMap(
-                fn (ClientAttentionPosition $position) => $this->decisionsFor(
-                    $position
+        $attentionDecisions =
+            $this->attention
+                ->ranked()
+                ->flatMap(
+                    fn (ClientAttentionPosition $position) => $this->decisionsFor(
+                        $position
+                    )
+                );
+
+        $commercialDecisions =
+            $this->revenueTruth
+                ->current()
+                ->gaps
+                ->map(
+                    fn (CommercialGap $gap) => $this->decisionForCommercialGap(
+                        $gap
+                    )
                 )
+                ->filter();
+
+        return $attentionDecisions
+            ->merge(
+                $commercialDecisions
+            )
+            ->unique(
+                fn (BusinessDecision $decision) => $decision->clientId
+                    .':'
+                    .$decision->type
             )
             ->sortByDesc(
                 'priority'
             )
             ->values();
+    }
+
+    private function decisionForCommercialGap(
+        CommercialGap $gap
+    ): ?BusinessDecision {
+        return match ($gap->type) {
+            'outstanding_revenue' => new BusinessDecision(
+                type: 'collections',
+
+                clientId: $gap->clientId,
+
+                client: $gap->client,
+
+                action: 'Review and chase overdue balance.',
+
+                reason: $gap->description,
+
+                priority: $gap->priority,
+
+                value: $gap->value,
+
+                confidence: $gap->confidence
+            ),
+
+            'unbilled_work' => new BusinessDecision(
+                type: 'invoice_delivery',
+
+                clientId: $gap->clientId,
+
+                client: $gap->client,
+
+                action: 'Review completed commercial work and create the required invoice.',
+
+                reason: $gap->description,
+
+                priority: $gap->priority,
+
+                value: $gap->value,
+
+                confidence: $gap->confidence
+            ),
+
+            'weak_payment_evidence' => new BusinessDecision(
+                type: 'payment_evidence',
+
+                clientId: $gap->clientId,
+
+                client: $gap->client,
+
+                action: 'Reconcile accounting payment claims against bank evidence.',
+
+                reason: $gap->description,
+
+                priority: $gap->priority,
+
+                value: null,
+
+                confidence: $gap->confidence
+            ),
+
+            'missing_work_evidence' => new BusinessDecision(
+                type: 'delivery_evidence',
+
+                clientId: $gap->clientId,
+
+                client: $gap->client,
+
+                action: 'Capture or review delivery evidence for this client.',
+
+                reason: $gap->description,
+
+                priority: $gap->priority,
+
+                value: null,
+
+                confidence: $gap->confidence
+            ),
+
+            default => null,
+        };
     }
 
     private function decisionsFor(

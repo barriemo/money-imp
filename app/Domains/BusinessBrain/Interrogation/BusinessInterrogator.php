@@ -5,13 +5,15 @@ namespace App\Domains\BusinessBrain\Interrogation;
 use App\Domains\BusinessBrain\Attention\Context\AttentionContext;
 use App\Domains\BusinessBrain\Decisions\BusinessDecisionService;
 use App\Domains\BusinessBrain\Decisions\Outcomes\BusinessDecisionOutcomeService;
+use App\Domains\BusinessBrain\Evidence\ClientPaymentEvidenceSummaryService;
 use App\Domains\BusinessBrain\Interrogation\Attention\ClientAttentionService;
 use App\Domains\BusinessBrain\Interrogation\Coverage\BusinessCoverageSummaryService;
 use App\Domains\BusinessBrain\Interrogation\Coverage\BusinessTruthCoverageService;
 use App\Domains\BusinessBrain\Interrogation\Position\BusinessPositionService;
-use App\Domains\BusinessBrain\Memory\BusinessMemoryEventService;
 use App\Domains\BusinessBrain\MorningBrief\Services\MorningBriefService;
 use App\Domains\BusinessBrain\Observations\BusinessObservationService;
+use App\Domains\BusinessBrain\RevenueTruth\RevenueTruthSummaryService;
+use App\Domains\BusinessBrain\Timeline\ClientTimelineBuilder;
 use App\Models\Client;
 use InvalidArgumentException;
 
@@ -34,7 +36,11 @@ class BusinessInterrogator
 
         private BusinessDecisionOutcomeService $decisionOutcomes,
 
-        private BusinessMemoryEventService $memory
+        private ClientTimelineBuilder $timeline,
+
+        private ClientPaymentEvidenceSummaryService $paymentEvidence,
+
+        private RevenueTruthSummaryService $revenueTruth
     ) {}
 
     public function ask(
@@ -83,6 +89,25 @@ class BusinessInterrogator
             )
         ) {
             return $this->clientsNeedingAttention(
+                $question
+            );
+        }
+
+        if (
+            in_array(
+                $normalised,
+                [
+                    'where are we leaking revenue?',
+                    'where are we leaking revenue',
+                    'where is revenue leaking?',
+                    'where is revenue leaking',
+                    'what revenue are we leaking?',
+                    'what revenue are we leaking',
+                ],
+                true
+            )
+        ) {
+            return $this->revenueLeakage(
                 $question
             );
         }
@@ -474,6 +499,116 @@ class BusinessInterrogator
                 ->all(),
 
             confidence: 95,
+
+            asOf: now()
+        );
+    }
+
+    private function revenueLeakage(
+        BusinessQuestion $question
+    ): BusinessAnswer {
+        $summary =
+            $this->revenueTruth
+                ->current();
+
+        $topOutstanding =
+            $summary
+                ->gaps
+                ->where(
+                    'type',
+                    'outstanding_revenue'
+                )
+                ->sortByDesc(
+                    'value'
+                )
+                ->take(5)
+                ->values();
+
+        $evidence =
+            $topOutstanding
+                ->map(
+                    fn ($gap) => [
+                        'client_id' => $gap->clientId,
+
+                        'client' => $gap->client,
+
+                        'type' => $gap->type,
+
+                        'value' => $gap->value,
+
+                        'description' => $gap->description,
+
+                        'priority' => $gap->priority,
+
+                        'confidence' => $gap->confidence,
+                    ]
+                )
+                ->values()
+                ->all();
+
+        return new BusinessAnswer(
+            question: $question->question,
+
+            answer: sprintf(
+                'Money Imp can currently prove £%s of outstanding invoiced revenue across %d clients. Accounting records £%s as paid, but only £%s is currently backed by approved bank-allocation evidence. %d clients have weak payment evidence and %d clients have no work-log evidence. Proven unbilled delivery leakage is currently £%s, but this figure is incomplete because delivery evidence is missing. Average commercial confidence is %d%%.',
+                number_format(
+                    $summary->outstanding,
+                    2
+                ),
+                $summary->clientsWithOutstandingRevenue,
+                number_format(
+                    $summary->paidAccordingToAccounting,
+                    2
+                ),
+                number_format(
+                    $summary->bankVerifiedPaymentValue,
+                    2
+                ),
+                $summary->clientsWithWeakPaymentEvidence,
+                $summary->clientsWithoutWorkEvidence,
+                number_format(
+                    $summary->unrecoveredWorkValue,
+                    2
+                ),
+                $summary->averageCommercialConfidence
+            ),
+
+            facts: [
+                'client_count' => $summary->clientCount,
+
+                'gross_invoiced' => $summary->grossInvoiced,
+
+                'paid_according_to_accounting' => $summary
+                    ->paidAccordingToAccounting,
+
+                'outstanding_revenue' => $summary->outstanding,
+
+                'proven_unbilled_delivery_value' => $summary
+                    ->unrecoveredWorkValue,
+
+                'bank_verified_payment_value' => $summary
+                    ->bankVerifiedPaymentValue,
+
+                'clients_with_outstanding_revenue' => $summary
+                    ->clientsWithOutstandingRevenue,
+
+                'clients_with_weak_payment_evidence' => $summary
+                    ->clientsWithWeakPaymentEvidence,
+
+                'clients_without_work_evidence' => $summary
+                    ->clientsWithoutWorkEvidence,
+
+                'average_commercial_confidence' => $summary
+                    ->averageCommercialConfidence,
+
+                'delivery_leakage_complete' => $summary
+                    ->clientsWithoutWorkEvidence === 0,
+            ],
+
+            evidence: $evidence,
+
+            confidence: $summary
+                ->averageCommercialConfidence,
 
             asOf: now()
         );
@@ -1094,18 +1229,18 @@ class BusinessInterrogator
             );
         }
 
-        $events =
-            $this->memory
-                ->forClient(
-                    (string) $client->id
+        $timeline =
+            $this->timeline
+                ->build(
+                    $client
                 );
 
-        if ($events->isEmpty()) {
+        if ($timeline->events->isEmpty()) {
             return new BusinessAnswer(
                 question: $question->question,
 
                 answer: sprintf(
-                    'Money Imp does not yet have any executive memory events recorded for %s.',
+                    'Money Imp does not yet have any timeline events recorded for %s.',
                     $client->name
                 ),
 
@@ -1124,17 +1259,22 @@ class BusinessInterrogator
         }
 
         $lines =
-            $events
-                ->take(10)
+            $timeline
+                ->events
+                ->take(20)
                 ->values()
                 ->map(
                     fn ($event, int $index) => sprintf(
-                        '%d. %s - %s',
+                        '%d. %s [%s] %s - %s',
                         $index + 1,
-                        $event->occurred_at
+                        $event->occurredAt
                             ->format(
-                                'Y-m-d H:i'
+                                'Y-m-d'
                             ),
+                        strtoupper(
+                            $event->type
+                        ),
+                        $event->title,
                         $event->description
                     )
                 );
@@ -1143,7 +1283,7 @@ class BusinessInterrogator
             question: $question->question,
 
             answer: sprintf(
-                '%s history:%s%s',
+                '%s timeline:%s%s',
                 $client->name,
                 PHP_EOL.PHP_EOL,
                 $lines->implode(
@@ -1154,18 +1294,23 @@ class BusinessInterrogator
             facts: [
                 'client' => $client->name,
 
-                'event_count' => $events->count(),
+                'event_count' => $timeline
+                    ->events
+                    ->count(),
 
-                'latest_event_type' => $events
+                'latest_event_type' => $timeline
+                    ->events
                     ->first()
                     ->type,
 
-                'latest_event_value' => $events
+                'latest_event_value' => $timeline
+                    ->events
                     ->first()
                     ->value,
             ],
 
-            evidence: $events
+            evidence: $timeline
+                ->events
                 ->map(
                     fn ($event) => [
                         'type' => $event->type,
@@ -1176,13 +1321,13 @@ class BusinessInterrogator
 
                         'value' => $event->value,
 
+                        'importance' => $event->importance,
+
                         'occurred_at' => $event
-                            ->occurred_at
+                            ->occurredAt
                             ->toIso8601String(),
 
-                        'source_type' => $event->source_type,
-
-                        'source_id' => $event->source_id,
+                        'metadata' => $event->metadata,
                     ]
                 )
                 ->values()

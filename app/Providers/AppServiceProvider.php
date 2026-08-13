@@ -7,6 +7,7 @@ use App\Domains\BusinessBrain\Attention\Builders\VATAttentionProvider;
 use App\Domains\BusinessBrain\Attention\Providers\AllocationAttentionProvider;
 use App\Domains\BusinessBrain\Attention\Providers\RecoveryAttentionProvider;
 use App\Domains\BusinessBrain\MorningBrief\History\MorningBriefSnapshotRepository;
+use App\Domains\BusinessBrain\Observations\History\BusinessObservationSnapshotRepository;
 use App\Domains\Evidence\EvidenceRepository;
 use App\Domains\EvidenceAcquisition\EvidenceAcquisitionEngine;
 use App\Domains\EvidenceAcquisition\Providers\FinancialEvidenceProvider;
@@ -46,6 +47,13 @@ class AppServiceProvider extends ServiceProvider
             MorningBriefSnapshotRepository::class,
             function () {
                 return new MorningBriefSnapshotRepository;
+            }
+        );
+
+        $this->app->singleton(
+            BusinessObservationSnapshotRepository::class,
+            function () {
+                return new BusinessObservationSnapshotRepository;
             }
         );
 
