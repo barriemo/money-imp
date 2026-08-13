@@ -9,6 +9,7 @@ use App\Domains\BusinessBrain\Interrogation\Coverage\BusinessCoverageSummaryServ
 use App\Domains\BusinessBrain\Interrogation\Coverage\BusinessTruthCoverageService;
 use App\Domains\BusinessBrain\Interrogation\Position\BusinessPositionService;
 use App\Domains\BusinessBrain\MorningBrief\Services\MorningBriefService;
+use App\Domains\BusinessBrain\Observations\BusinessObservationService;
 use App\Models\Client;
 use InvalidArgumentException;
 
@@ -25,7 +26,9 @@ class BusinessInterrogator
 
         private BusinessCoverageSummaryService $coverageSummary,
 
-        private BusinessDecisionService $decisions
+        private BusinessDecisionService $decisions,
+
+        private BusinessObservationService $observations
     ) {}
 
     public function ask(
@@ -129,6 +132,23 @@ class BusinessInterrogator
             )
         ) {
             return $this->todayDecisions(
+                $question
+            );
+        }
+
+        if (
+            in_array(
+                $normalised,
+                [
+                    'what changed?',
+                    'what changed',
+                    'what changed since yesterday?',
+                    'what changed since yesterday',
+                ],
+                true
+            )
+        ) {
+            return $this->whatChanged(
                 $question
             );
         }
@@ -576,10 +596,51 @@ class BusinessInterrogator
     private function todayDecisions(
         BusinessQuestion $question
     ): BusinessAnswer {
-        $decisions =
+        $allDecisions =
             $this->decisions
-                ->today()
-                ->take(5)
+                ->today();
+
+        $decisions =
+            collect()
+                ->merge(
+                    $allDecisions
+                        ->where(
+                            'type',
+                            'collections'
+                        )
+                        ->take(3)
+                )
+                ->merge(
+                    $allDecisions
+                        ->where(
+                            'type',
+                            'billing_dormancy'
+                        )
+                        ->reject(
+                            fn ($decision) => $allDecisions
+                                ->where(
+                                    'type',
+                                    'collections'
+                                )
+                                ->take(3)
+                                ->contains(
+                                    'clientId',
+                                    $decision->clientId
+                                )
+                        )
+                        ->take(1)
+                )
+                ->merge(
+                    $allDecisions
+                        ->where(
+                            'type',
+                            'charlie_follow_up'
+                        )
+                        ->take(1)
+                )
+                ->sortByDesc(
+                    'priority'
+                )
                 ->values();
 
         if ($decisions->isEmpty()) {
@@ -659,6 +720,210 @@ class BusinessInterrogator
                         'confidence' => $decision->confidence,
                     ]
                 )
+                ->all(),
+
+            confidence: 95,
+
+            asOf: now()
+        );
+    }
+
+    private function describeObservationChange(
+        $change
+    ): string {
+        $current =
+            $change->observation;
+
+        $previous =
+            $change->previous;
+
+        if (
+            in_array(
+                $change->type,
+                [
+                    'improved',
+                    'worsened',
+                ],
+                true
+            )
+            && $previous
+            && $previous->value !== null
+            && $current->value !== null
+        ) {
+            $difference =
+                abs(
+                    $current->value
+                    - $previous->value
+                );
+
+            return sprintf(
+                '%s: %s changed from £%s to £%s, %s £%s.',
+                strtoupper(
+                    $change->type
+                ),
+                $current->client
+                    ?? $current->title,
+                number_format(
+                    $previous->value,
+                    2
+                ),
+                number_format(
+                    $current->value,
+                    2
+                ),
+                $change->type === 'worsened'
+                    ? 'up'
+                    : 'down',
+                number_format(
+                    $difference,
+                    2
+                )
+            );
+        }
+
+        return sprintf(
+            '%s: %s',
+            strtoupper(
+                $change->type
+            ),
+            $current->title
+        );
+    }
+
+    private function whatChanged(
+        BusinessQuestion $question
+    ): BusinessAnswer {
+        $hadPreviousSnapshot =
+            $this->observations
+                ->hasSnapshot();
+
+        $changes =
+            $this->observations
+                ->observe();
+
+        if (! $hadPreviousSnapshot) {
+            return new BusinessAnswer(
+                question: $question->question,
+
+                answer: 'Baseline business observation snapshot created. Future observations can now be compared against this position.',
+
+                facts: [
+                    'change_count' => 0,
+
+                    'baseline_created' => true,
+                ],
+
+                evidence: [],
+
+                confidence: 100,
+
+                asOf: now()
+            );
+        }
+
+        if ($changes->isEmpty()) {
+            return new BusinessAnswer(
+                question: $question->question,
+
+                answer: 'No material business changes were detected since the previous observation snapshot.',
+
+                facts: [
+                    'change_count' => 0,
+
+                    'baseline_created' => false,
+                ],
+
+                evidence: [],
+
+                confidence: 100,
+
+                asOf: now()
+            );
+        }
+
+        $lines =
+            $changes
+                ->take(10)
+                ->map(
+                    fn ($change, int $index) => sprintf(
+                        '%d. %s',
+                        $index + 1,
+                        $this->describeObservationChange(
+                            $change
+                        )
+                    )
+                );
+
+        return new BusinessAnswer(
+            question: $question->question,
+
+            answer: sprintf(
+                'Material business changes:%s%s',
+                PHP_EOL.PHP_EOL,
+                $lines->implode(
+                    PHP_EOL
+                )
+            ),
+
+            facts: [
+                'change_count' => $changes->count(),
+
+                'new_count' => $changes
+                    ->where(
+                        'type',
+                        'new'
+                    )
+                    ->count(),
+
+                'worsened_count' => $changes
+                    ->where(
+                        'type',
+                        'worsened'
+                    )
+                    ->count(),
+
+                'improved_count' => $changes
+                    ->where(
+                        'type',
+                        'improved'
+                    )
+                    ->count(),
+
+                'resolved_count' => $changes
+                    ->where(
+                        'type',
+                        'resolved'
+                    )
+                    ->count(),
+            ],
+
+            evidence: $changes
+                ->map(
+                    fn ($change) => [
+                        'change_type' => $change->type,
+
+                        'observation_type' => $change
+                            ->observation
+                            ->type,
+
+                        'client' => $change
+                            ->observation
+                            ->client,
+
+                        'title' => $change
+                            ->observation
+                            ->title,
+
+                        'value' => $change
+                            ->observation
+                            ->value,
+
+                        'priority' => $change
+                            ->observation
+                            ->priority,
+                    ]
+                )
+                ->values()
                 ->all(),
 
             confidence: 95,
