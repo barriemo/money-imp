@@ -12,6 +12,7 @@ use App\Domains\BusinessBrain\Interrogation\Coverage\BusinessTruthCoverageServic
 use App\Domains\BusinessBrain\Interrogation\Position\BusinessPositionService;
 use App\Domains\BusinessBrain\MorningBrief\Services\MorningBriefService;
 use App\Domains\BusinessBrain\Observations\BusinessObservationService;
+use App\Domains\BusinessBrain\Reasoning\ExecutiveReasoningSummaryService;
 use App\Domains\BusinessBrain\RevenueTruth\RevenueTruthSummaryService;
 use App\Domains\BusinessBrain\Timeline\ClientTimelineBuilder;
 use App\Models\Client;
@@ -40,7 +41,9 @@ class BusinessInterrogator
 
         private ClientPaymentEvidenceSummaryService $paymentEvidence,
 
-        private RevenueTruthSummaryService $revenueTruth
+        private RevenueTruthSummaryService $revenueTruth,
+
+        private ExecutiveReasoningSummaryService $executiveReasoning
     ) {}
 
     public function ask(
@@ -215,6 +218,27 @@ class BusinessInterrogator
             )
         ) {
             return $this->clientHistory(
+                $question
+            );
+        }
+
+        if (
+            in_array(
+                $normalised,
+                [
+                    'what are today\'s biggest opportunities?',
+                    'what are today\'s biggest opportunities',
+                    'where can we make the most money today?',
+                    'where can we make the most money today',
+                    'what is my highest roi action?',
+                    'what is my highest roi action',
+                    'what\'s my highest roi action?',
+                    'what\'s my highest roi action',
+                ],
+                true
+            )
+        ) {
+            return $this->executiveOpportunities(
                 $question
             );
         }
@@ -1334,6 +1358,138 @@ class BusinessInterrogator
                 ->all(),
 
             confidence: 100,
+
+            asOf: now()
+        );
+    }
+
+    private function executiveOpportunities(
+        BusinessQuestion $question
+    ): BusinessAnswer {
+        $summary =
+            $this->executiveReasoning
+                ->current(
+                    5
+                );
+
+        $top =
+            $summary
+                ->topOpportunities;
+
+        $lines =
+            $top
+                ->map(
+                    fn ($item, int $index) => sprintf(
+                        '%d. %s - %s%s Score %d. Estimated effort %s.',
+                        $index + 1,
+                        $item->client ?? 'Business',
+                        $item->recommendedAction,
+                        $item->estimatedFinancialImpact !== null
+                            ? sprintf(
+                                ' Estimated financial impact £%s.',
+                                number_format(
+                                    $item->estimatedFinancialImpact,
+                                    2
+                                )
+                            )
+                            : ' ',
+                        $item->score,
+                        $item->estimatedEffortMinutes !== null
+                            ? $item->estimatedEffortMinutes.' minutes'
+                            : 'unknown'
+                    )
+                );
+
+        $highest =
+            $summary
+                ->highestOpportunity;
+
+        return new BusinessAnswer(
+            question: $question->question,
+
+            answer: sprintf(
+                'CFO Imp has identified %d current executive opportunities with £%s of known financial impact. %d qualify as high-scoring quick wins representing £%s of known financial impact.%s%s',
+                $summary->opportunityCount,
+                number_format(
+                    $summary->knownFinancialImpact,
+                    2
+                ),
+                $summary->quickWinCount,
+                number_format(
+                    $summary->quickWinFinancialImpact,
+                    2
+                ),
+                PHP_EOL.PHP_EOL,
+                $lines->implode(
+                    PHP_EOL
+                )
+            ),
+
+            facts: [
+                'opportunity_count' => $summary
+                    ->opportunityCount,
+
+                'known_financial_impact' => $summary
+                    ->knownFinancialImpact,
+
+                'quick_win_count' => $summary
+                    ->quickWinCount,
+
+                'quick_win_financial_impact' => $summary
+                    ->quickWinFinancialImpact,
+
+                'financial_opportunity_count' => $summary
+                    ->financialOpportunityCount,
+
+                'financial_control_count' => $summary
+                    ->financialControlCount,
+
+                'delivery_control_count' => $summary
+                    ->deliveryControlCount,
+
+                'operational_opportunity_count' => $summary
+                    ->operationalOpportunityCount,
+
+                'highest_opportunity_client' => $highest?->client,
+
+                'highest_opportunity_score' => $highest?->score,
+            ],
+
+            evidence: $top
+                ->map(
+                    fn ($item) => [
+                        'type' => $item->type,
+
+                        'client_id' => $item->clientId,
+
+                        'client' => $item->client,
+
+                        'title' => $item->title,
+
+                        'financial_impact' => $item
+                            ->estimatedFinancialImpact,
+
+                        'estimated_effort_minutes' => $item
+                            ->estimatedEffortMinutes,
+
+                        'confidence' => $item->confidence,
+
+                        'urgency' => $item->urgency,
+
+                        'score' => $item->score,
+
+                        'recommended_action' => $item
+                            ->recommendedAction,
+
+                        'supporting_evidence' => $item
+                            ->supportingEvidence,
+                    ]
+                )
+                ->values()
+                ->all(),
+
+            confidence: $highest?->confidence
+                ?? 0,
 
             asOf: now()
         );
