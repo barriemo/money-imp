@@ -3,6 +3,7 @@
 namespace App\Domains\BusinessBrain\Interrogation;
 
 use App\Domains\BusinessBrain\Attention\Context\AttentionContext;
+use App\Domains\BusinessBrain\Decisions\BusinessDecisionService;
 use App\Domains\BusinessBrain\Interrogation\Attention\ClientAttentionService;
 use App\Domains\BusinessBrain\Interrogation\Coverage\BusinessCoverageSummaryService;
 use App\Domains\BusinessBrain\Interrogation\Coverage\BusinessTruthCoverageService;
@@ -22,7 +23,9 @@ class BusinessInterrogator
 
         private ClientAttentionService $attention,
 
-        private BusinessCoverageSummaryService $coverageSummary
+        private BusinessCoverageSummaryService $coverageSummary,
+
+        private BusinessDecisionService $decisions
     ) {}
 
     public function ask(
@@ -107,6 +110,25 @@ class BusinessInterrogator
             )
         ) {
             return $this->unknowns(
+                $question
+            );
+        }
+
+        if (
+            in_array(
+                $normalised,
+                [
+                    'what should i do today?',
+                    'what should i do today',
+                    'what should we do today?',
+                    'what should we do today',
+                    'what should i do next?',
+                    'what should i do next',
+                ],
+                true
+            )
+        ) {
+            return $this->todayDecisions(
                 $question
             );
         }
@@ -546,6 +568,100 @@ class BusinessInterrogator
                 ->all(),
 
             confidence: 100,
+
+            asOf: now()
+        );
+    }
+
+    private function todayDecisions(
+        BusinessQuestion $question
+    ): BusinessAnswer {
+        $decisions =
+            $this->decisions
+                ->today()
+                ->take(5)
+                ->values();
+
+        if ($decisions->isEmpty()) {
+            return new BusinessAnswer(
+                question: $question->question,
+
+                answer: 'There are no current business actions requiring attention.',
+
+                facts: [
+                    'decision_count' => 0,
+                ],
+
+                evidence: [],
+
+                confidence: 100,
+
+                asOf: now()
+            );
+        }
+
+        $lines =
+            $decisions
+                ->map(
+                    fn ($decision, int $index) => sprintf(
+                        '%d. %s - %s %s',
+                        $index + 1,
+                        $decision->client,
+                        $decision->action,
+                        $decision->reason
+                    )
+                );
+
+        return new BusinessAnswer(
+            question: $question->question,
+
+            answer: sprintf(
+                "Today's recommended actions:%s%s",
+                PHP_EOL.PHP_EOL,
+                $lines->implode(
+                    PHP_EOL
+                )
+            ),
+
+            facts: [
+                'decision_count' => $decisions->count(),
+
+                'highest_priority_client' => $decisions
+                    ->first()
+                    ->client,
+
+                'highest_priority_type' => $decisions
+                    ->first()
+                    ->type,
+
+                'highest_priority' => $decisions
+                    ->first()
+                    ->priority,
+            ],
+
+            evidence: $decisions
+                ->map(
+                    fn ($decision) => [
+                        'type' => $decision->type,
+
+                        'client_id' => $decision->clientId,
+
+                        'client' => $decision->client,
+
+                        'action' => $decision->action,
+
+                        'reason' => $decision->reason,
+
+                        'priority' => $decision->priority,
+
+                        'value' => $decision->value,
+
+                        'confidence' => $decision->confidence,
+                    ]
+                )
+                ->all(),
+
+            confidence: 95,
 
             asOf: now()
         );

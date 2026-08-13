@@ -49,6 +49,12 @@ class BusinessAskCommand extends Command
                     'what do you not know yet',
                     'what are your blind spots?',
                     'what are your blind spots',
+                    'what should i do today?',
+                    'what should i do today',
+                    'what should we do today?',
+                    'what should we do today',
+                    'what should i do next?',
+                    'what should i do next',
                 ],
                 true
             )
