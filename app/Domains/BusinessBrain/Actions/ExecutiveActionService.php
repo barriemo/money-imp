@@ -53,6 +53,26 @@ class ExecutiveActionService
             ->get();
     }
 
+    public function byStatus(
+        string $status
+    ): Collection {
+        return ExecutiveAction::query()
+            ->where(
+                'status',
+                $status
+            )
+            ->orderByDesc(
+                'score'
+            )
+            ->orderByDesc(
+                'estimated_financial_impact'
+            )
+            ->orderBy(
+                'created_at'
+            )
+            ->get();
+    }
+
     public function start(
         ExecutiveAction $action
     ): ExecutiveAction {
@@ -73,6 +93,37 @@ class ExecutiveActionService
         return $action->refresh();
     }
 
+    public function wait(
+        ExecutiveAction $action,
+        string $reason
+    ): ExecutiveAction {
+        if (
+            ! in_array(
+                $action->status,
+                [
+                    'pending',
+                    'started',
+                    'waiting',
+                ],
+                true
+            )
+        ) {
+            throw new \LogicException(
+                sprintf(
+                    'Cannot mark executive action as waiting from %s state.',
+                    $action->status
+                )
+            );
+        }
+
+        $action->update([
+            'status' => 'waiting',
+            'outcome' => $reason,
+        ]);
+
+        return $action->refresh();
+    }
+
     public function complete(
         ExecutiveAction $action,
         string $outcome,
@@ -84,6 +135,7 @@ class ExecutiveActionService
                 [
                     'pending',
                     'started',
+                    'waiting',
                 ],
                 true
             )

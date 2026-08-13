@@ -253,4 +253,82 @@ class ExecutiveActionServiceTest extends TestCase
             ]
         );
     }
+
+    public function test_action_can_move_from_started_to_waiting_to_completed(): void
+    {
+        $action =
+            ExecutiveAction::create([
+                'fingerprint' => hash(
+                    'sha256',
+                    'waiting-lifecycle'
+                ),
+
+                'type' => 'financial_opportunity',
+
+                'title' => 'Recover overdue revenue',
+
+                'description' => 'Revenue is overdue.',
+
+                'recommended_action' => 'Chase client.',
+
+                'confidence' => 100,
+
+                'urgency' => 95,
+
+                'score' => 98,
+
+                'status' => 'pending',
+            ]);
+
+        $service =
+            app(
+                ExecutiveActionService::class
+            );
+
+        $action =
+            $service->start(
+                $action
+            );
+
+        $this->assertSame(
+            'started',
+            $action->status
+        );
+
+        $action =
+            $service->wait(
+                action: $action,
+
+                reason: 'Waiting for client payment.'
+            );
+
+        $this->assertSame(
+            'waiting',
+            $action->status
+        );
+
+        $this->assertSame(
+            'Waiting for client payment.',
+            $action->outcome
+        );
+
+        $action =
+            $service->complete(
+                action: $action,
+
+                outcome: 'Client paid.',
+
+                financialResult: 5000
+            );
+
+        $this->assertSame(
+            'completed',
+            $action->status
+        );
+
+        $this->assertSame(
+            '5000.00',
+            $action->financial_result
+        );
+    }
 }

@@ -7,8 +7,8 @@ use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
-#[Signature('business:actions {--limit=20}')]
-#[Description('List current pending executive actions')]
+#[Signature('business:actions {--status=pending} {--limit=20}')]
+#[Description('List executive actions by status')]
 class BusinessActionsCommand extends Command
 {
     public function handle(
@@ -20,29 +20,40 @@ class BusinessActionsCommand extends Command
                 (int) $this->option('limit')
             );
 
+        $status =
+            (string) $this->option(
+                'status'
+            );
+
         $items =
             $actions
-                ->pending()
+                ->byStatus(
+                    $status
+                )
                 ->take(
                     $limit
                 );
 
         if ($items->isEmpty()) {
             $this->info(
-                'No pending executive actions.'
+                sprintf(
+                    'No executive actions in %s state.',
+                    $status
+                )
             );
 
             return self::SUCCESS;
         }
 
-        foreach (
-            $items as $index => $action
-        ) {
+        foreach ($items as $index => $action) {
             $this->line(
                 sprintf(
-                    '%d. [%d] %s',
+                    '%d. [%d] [%s] %s',
                     $index + 1,
                     $action->score,
+                    strtoupper(
+                        $action->status
+                    ),
                     $action->client
                         ? $action->client.' - '.$action->title
                         : $action->title
@@ -53,9 +64,13 @@ class BusinessActionsCommand extends Command
                 '   '.$action->recommended_action
             );
 
-            if (
-                $action->estimated_financial_impact !== null
-            ) {
+            if ($action->outcome) {
+                $this->line(
+                    '   Current note: '.$action->outcome
+                );
+            }
+
+            if ($action->estimated_financial_impact !== null) {
                 $this->line(
                     '   Value: £'.number_format(
                         (float) $action
@@ -65,9 +80,7 @@ class BusinessActionsCommand extends Command
                 );
             }
 
-            if (
-                $action->estimated_effort_minutes !== null
-            ) {
+            if ($action->estimated_effort_minutes !== null) {
                 $this->line(
                     '   Effort: '.$action
                         ->estimated_effort_minutes.' minutes'

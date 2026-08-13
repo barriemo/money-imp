@@ -2,6 +2,7 @@
 
 namespace App\Domains\BusinessBrain\Interrogation;
 
+use App\Domains\BusinessBrain\Actions\ExecutiveActionService;
 use App\Domains\BusinessBrain\Attention\Context\AttentionContext;
 use App\Domains\BusinessBrain\Decisions\BusinessDecisionService;
 use App\Domains\BusinessBrain\Decisions\Outcomes\BusinessDecisionOutcomeService;
@@ -10,6 +11,8 @@ use App\Domains\BusinessBrain\Interrogation\Attention\ClientAttentionService;
 use App\Domains\BusinessBrain\Interrogation\Coverage\BusinessCoverageSummaryService;
 use App\Domains\BusinessBrain\Interrogation\Coverage\BusinessTruthCoverageService;
 use App\Domains\BusinessBrain\Interrogation\Position\BusinessPositionService;
+use App\Domains\BusinessBrain\Learning\ActionOutcomeProfileService;
+use App\Domains\BusinessBrain\Learning\LearningConfidenceService;
 use App\Domains\BusinessBrain\MorningBrief\Services\MorningBriefService;
 use App\Domains\BusinessBrain\Observations\BusinessObservationService;
 use App\Domains\BusinessBrain\Reasoning\ExecutiveReasoningSummaryService;
@@ -43,7 +46,13 @@ class BusinessInterrogator
 
         private RevenueTruthSummaryService $revenueTruth,
 
-        private ExecutiveReasoningSummaryService $executiveReasoning
+        private ExecutiveReasoningSummaryService $executiveReasoning,
+
+        private ActionOutcomeProfileService $outcomeProfiles,
+
+        private LearningConfidenceService $learningConfidence,
+
+        private ExecutiveActionService $executiveActions
     ) {}
 
     public function ask(
@@ -239,6 +248,44 @@ class BusinessInterrogator
             )
         ) {
             return $this->executiveOpportunities(
+                $question
+            );
+        }
+
+        if (
+            in_array(
+                $normalised,
+                [
+                    'what have you learned?',
+                    'what have you learned',
+                    'what strategies are working?',
+                    'what strategies are working',
+                    'what is working?',
+                    'what is working',
+                ],
+                true
+            )
+        ) {
+            return $this->learningSummary(
+                $question
+            );
+        }
+
+        if (
+            in_array(
+                $normalised,
+                [
+                    'what are we waiting on?',
+                    'what are we waiting on',
+                    'what am i waiting on?',
+                    'what am i waiting on',
+                    'what is waiting?',
+                    'what is waiting',
+                ],
+                true
+            )
+        ) {
+            return $this->waitingActions(
                 $question
             );
         }
@@ -1490,6 +1537,269 @@ class BusinessInterrogator
 
             confidence: $highest?->confidence
                 ?? 0,
+
+            asOf: now()
+        );
+    }
+
+    private function learningSummary(
+        BusinessQuestion $question
+    ): BusinessAnswer {
+        $profiles =
+            $this->outcomeProfiles
+                ->byType();
+
+        if ($profiles->isEmpty()) {
+            return new BusinessAnswer(
+                question: $question->question,
+
+                answer: 'CFO Imp has not yet observed enough completed executive actions to report meaningful outcome learning.',
+
+                facts: [
+                    'profile_count' => 0,
+
+                    'usable_profile_count' => 0,
+                ],
+
+                evidence: [],
+
+                confidence: 0,
+
+                asOf: now()
+            );
+        }
+
+        $evidence =
+            $profiles
+                ->map(
+                    function ($profile) {
+                        $learning =
+                            $this->learningConfidence
+                                ->forSample(
+                                    $profile->completedCount
+                                );
+
+                        return [
+                            'type' => $profile->type,
+
+                            'completed_count' => $profile
+                                ->completedCount,
+
+                            'financial_success_count' => $profile
+                                ->financialSuccessCount,
+
+                            'financial_success_rate' => $profile
+                                ->financialSuccessRate,
+
+                            'total_financial_result' => $profile
+                                ->totalFinancialResult,
+
+                            'average_financial_result' => $profile
+                                ->averageFinancialResult,
+
+                            'average_completion_hours' => $profile
+                                ->averageCompletionHours,
+
+                            'learning_usable' => $learning
+                                ->usable,
+
+                            'learning_confidence' => $learning
+                                ->confidence,
+                        ];
+                    }
+                )
+                ->values();
+
+        $usable =
+            $evidence
+                ->where(
+                    'learning_usable',
+                    true
+                );
+
+        $best =
+            $usable
+                ->sortByDesc(
+                    'financial_success_rate'
+                )
+                ->first();
+
+        $answer =
+            $usable->isEmpty()
+                ? sprintf(
+                    'CFO Imp has recorded outcome history across %d executive action type%s, but none has yet reached the minimum evidence threshold required to influence judgement.',
+                    $profiles->count(),
+                    $profiles->count() === 1
+                        ? ''
+                        : 's'
+                )
+                : sprintf(
+                    'CFO Imp currently has usable historical learning for %d executive action type%s. The strongest observed strategy is %s with a %d%% financial success rate across %d completed actions and £%s of recorded financial result.',
+                    $usable->count(),
+                    $usable->count() === 1
+                        ? ''
+                        : 's',
+                    str_replace(
+                        '_',
+                        ' ',
+                        $best['type']
+                    ),
+                    $best['financial_success_rate'],
+                    $best['completed_count'],
+                    number_format(
+                        $best['total_financial_result'],
+                        2
+                    )
+                );
+
+        return new BusinessAnswer(
+            question: $question->question,
+
+            answer: $answer,
+
+            facts: [
+                'profile_count' => $profiles
+                    ->count(),
+
+                'usable_profile_count' => $usable
+                    ->count(),
+
+                'best_learned_type' => $best['type']
+                    ?? null,
+
+                'best_success_rate' => $best[
+                    'financial_success_rate'
+                ] ?? null,
+            ],
+
+            evidence: $evidence
+                ->all(),
+
+            confidence: $usable->isEmpty()
+                ? 0
+                : (int) $usable
+                    ->max(
+                        'learning_confidence'
+                    ),
+
+            asOf: now()
+        );
+    }
+
+    private function waitingActions(
+        BusinessQuestion $question
+    ): BusinessAnswer {
+        $actions =
+            $this->executiveActions
+                ->byStatus(
+                    'waiting'
+                );
+
+        if ($actions->isEmpty()) {
+            return new BusinessAnswer(
+                question: $question->question,
+
+                answer: 'CFO Imp currently has no executive actions waiting on external dependencies.',
+
+                facts: [
+                    'waiting_action_count' => 0,
+
+                    'waiting_financial_impact' => 0,
+                ],
+
+                evidence: [],
+
+                confidence: 100,
+
+                asOf: now()
+            );
+        }
+
+        $financialImpact =
+            (float) $actions
+                ->sum(
+                    fn ($action) => (float) (
+                        $action->estimated_financial_impact
+                        ?? 0
+                    )
+                );
+
+        $top =
+            $actions
+                ->take(
+                    10
+                )
+                ->values();
+
+        $lines =
+            $top
+                ->map(
+                    fn ($action, int $index) => sprintf(
+                        '%d. %s - %s Waiting on: %s',
+                        $index + 1,
+                        $action->client ?? 'Business',
+                        $action->title,
+                        $action->outcome
+                            ?? 'External dependency'
+                    )
+                );
+
+        return new BusinessAnswer(
+            question: $question->question,
+
+            answer: sprintf(
+                'CFO Imp has %d executive action%s waiting on external dependencies, representing £%s of known potential financial impact.%s%s',
+                $actions->count(),
+                $actions->count() === 1
+                    ? ''
+                    : 's',
+                number_format(
+                    $financialImpact,
+                    2
+                ),
+                PHP_EOL.PHP_EOL,
+                $lines->implode(
+                    PHP_EOL
+                )
+            ),
+
+            facts: [
+                'waiting_action_count' => $actions
+                    ->count(),
+
+                'waiting_financial_impact' => $financialImpact,
+            ],
+
+            evidence: $top
+                ->map(
+                    fn ($action) => [
+                        'id' => $action->id,
+
+                        'client_id' => $action->client_id,
+
+                        'client' => $action->client,
+
+                        'type' => $action->type,
+
+                        'title' => $action->title,
+
+                        'waiting_reason' => $action->outcome,
+
+                        'financial_impact' => $action
+                            ->estimated_financial_impact !== null
+                                ? (float) $action
+                                    ->estimated_financial_impact
+                                : null,
+
+                        'score' => $action->score,
+
+                        'started_at' => $action
+                            ->started_at?->toIso8601String(),
+                    ]
+                )
+                ->all(),
+
+            confidence: 100,
 
             asOf: now()
         );

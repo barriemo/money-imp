@@ -65,6 +65,18 @@ class BusinessAskCommand extends Command
                     'how have our recommendations performed',
                     'what happened to our decisions?',
                     'what happened to our decisions',
+                    'what have you learned?',
+                    'what have you learned',
+                    'what strategies are working?',
+                    'what strategies are working',
+                    'what is working?',
+                    'what is working',
+                    'what are we waiting on?',
+                    'what are we waiting on',
+                    'what am i waiting on?',
+                    'what am i waiting on',
+                    'what is waiting?',
+                    'what is waiting',
                 ],
                 true
             )
