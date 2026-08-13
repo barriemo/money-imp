@@ -5,6 +5,7 @@ namespace App\Domains\BusinessBrain\MorningBrief\Context;
 use App\Domains\BusinessBrain\Attention\Context\AttentionContext;
 use App\Domains\CommercialTruth\Recovery\RecoveryOpportunitySummariser;
 use App\Domains\ResourceIntelligence\Allocation\Providers\ClientAllocationVarianceProvider;
+use App\Domains\VATIntelligence\Providers\ClientVATExposureProvider;
 use App\Models\Client;
 
 class MorningBriefContextBuilder
@@ -12,7 +13,9 @@ class MorningBriefContextBuilder
     public function __construct(
         private RecoveryOpportunitySummariser $recoverySummariser,
 
-        private ClientAllocationVarianceProvider $allocationProvider
+        private ClientAllocationVarianceProvider $allocationProvider,
+
+        private ClientVATExposureProvider $vatProvider
     ) {}
 
     public function build(
@@ -26,6 +29,10 @@ class MorningBriefContextBuilder
             ),
 
             allocation: $this->allocationProvider->provide(
+                (string) $client->id
+            ),
+
+            vat: $this->vatProvider->provide(
                 (string) $client->id
             )
         );
