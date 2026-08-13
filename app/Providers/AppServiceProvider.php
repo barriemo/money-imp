@@ -13,6 +13,7 @@ use App\Domains\EvidenceAcquisition\Providers\InfrastructureEvidenceProvider;
 use App\Domains\EvidenceAcquisition\Ranking\EvidenceQueueBuilder;
 use App\Domains\ResourceIntelligence\Allocation\AllocationVarianceRepository;
 use App\Domains\ResourceIntelligence\Attribution\ResourceContributionRepository;
+use App\Domains\VATIntelligence\VATPositionRepository;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -30,6 +31,13 @@ class AppServiceProvider extends ServiceProvider
             AllocationVarianceRepository::class,
             function () {
                 return new AllocationVarianceRepository;
+            }
+        );
+
+        $this->app->singleton(
+            VATPositionRepository::class,
+            function () {
+                return new VATPositionRepository;
             }
         );
 
