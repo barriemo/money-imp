@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Domains\BusinessBrain\Project\Presenters\ProjectActionPresenter;
 use App\Models\ProjectAction;
 use Illuminate\Console\Command;
 
@@ -11,14 +12,18 @@ class ProjectActionsCommand extends Command
 
     protected $description = 'Show Project Imp action queue';
 
-    public function handle(): int
-    {
+    public function handle(
+        ProjectActionPresenter $presenter
+    ): int {
         $actions =
             ProjectAction::query()
-                ->with('project')
+                ->with([
+                    'project',
+                    'evidence',
+                ])
                 ->where(
                     'status',
-                    'open'
+                    ProjectAction::STATUS_OPEN
                 )
                 ->orderByRaw(
                     "CASE priority
@@ -31,13 +36,9 @@ class ProjectActionsCommand extends Command
                 )
                 ->get();
 
-        $this->line(
-            'MONEY IMP'
-        );
+        $this->line('MONEY IMP');
 
-        $this->line(
-            'Project Imp Action Queue'
-        );
+        $this->line('Project Imp Action Queue');
 
         $this->newLine();
 
@@ -46,12 +47,12 @@ class ProjectActionsCommand extends Command
         );
 
         foreach ($actions as $action) {
+            $data = $presenter->present($action);
+
             $this->newLine();
 
             $this->line(
-                strtoupper(
-                    $action->priority
-                )
+                strtoupper($data['priority'])
             );
 
             $this->line(
@@ -59,12 +60,18 @@ class ProjectActionsCommand extends Command
             );
 
             $this->line(
-                $action->action
+                $data['action']
             );
 
             $this->line(
-                'Reason: '.$action->reason
+                'Reason: '.$data['reason']
             );
+
+            foreach ($data['evidence'] as $evidence) {
+                $this->line(
+                    'Evidence: '.$evidence['description']
+                );
+            }
         }
 
         return self::SUCCESS;
