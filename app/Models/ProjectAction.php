@@ -5,6 +5,7 @@ namespace App\Models;
 use DomainException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProjectAction extends Model
 {
@@ -84,5 +85,10 @@ class ProjectAction extends Model
     {
         $this->status = $status;
         $this->save();
+    }
+
+    public function evidence(): HasMany
+    {
+        return $this->hasMany(ProjectActionEvidence::class);
     }
 }
