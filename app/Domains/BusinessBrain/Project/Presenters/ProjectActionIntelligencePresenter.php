@@ -22,6 +22,7 @@ class ProjectActionIntelligencePresenter
             'outcomes',
             'events',
             'project',
+            'recommendations',
         ]);
 
         return [
@@ -37,6 +38,19 @@ class ProjectActionIntelligencePresenter
                 ->all(),
 
             'priority' => $this->prioritiser->prioritise($action),
+
+            'recommendations' => $action->recommendations
+                ->map(
+                    fn ($recommendation) => [
+                        'type' => $recommendation->type,
+                        'recommendation' => $recommendation->recommendation,
+                        'expected_impact' => $recommendation->expected_impact,
+                        'confidence' => $recommendation->confidence,
+                        'status' => $recommendation->status,
+                    ]
+                )
+                ->values()
+                ->all(),
         ];
     }
 }

@@ -119,6 +119,11 @@ class ProjectAction extends Model
         return $this->hasMany(ProjectActionEvent::class);
     }
 
+    public function outcomes(): HasMany
+    {
+        return $this->hasMany(ProjectActionOutcome::class);
+    }
+
     public function recommendations(): HasMany
     {
         return $this->hasMany(
