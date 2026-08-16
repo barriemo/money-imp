@@ -37,6 +37,8 @@ class ProjectBriefService
 
                 updateRequests: [],
 
+                recommendations: [],
+
                 asOf: CarbonImmutable::now()
             );
         }
