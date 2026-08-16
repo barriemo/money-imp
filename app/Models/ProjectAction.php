@@ -38,6 +38,8 @@ class ProjectAction extends Model
     public function approve(): void
     {
         $this->transitionTo(self::STATUS_APPROVED);
+
+        $this->recordEvent('approved');
     }
 
     public function assignTo(string $owner): void
@@ -54,11 +56,17 @@ class ProjectAction extends Model
         $this->assigned_to = $owner;
         $this->status = self::STATUS_ASSIGNED;
         $this->save();
+
+        $this->recordEvent('assigned', [
+            'owner' => $owner,
+        ]);
     }
 
     public function start(): void
     {
         $this->transitionTo(self::STATUS_IN_PROGRESS);
+
+        $this->recordEvent('started');
     }
 
     public function complete(): void
@@ -66,6 +74,8 @@ class ProjectAction extends Model
         $this->status = self::STATUS_COMPLETED;
         $this->completed_at = now();
         $this->save();
+
+        $this->recordEvent('completed');
     }
 
     public function verify(): void
@@ -79,12 +89,24 @@ class ProjectAction extends Model
         $this->status = self::STATUS_VERIFIED;
         $this->verified_at = now();
         $this->save();
+
+        $this->recordEvent('verified');
     }
 
     protected function transitionTo(string $status): void
     {
         $this->status = $status;
         $this->save();
+    }
+
+    protected function recordEvent(
+        string $type,
+        array $payload = []
+    ): void {
+        $this->events()->create([
+            'type' => $type,
+            'payload' => $payload,
+        ]);
     }
 
     public function evidence(): HasMany
