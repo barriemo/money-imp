@@ -50,4 +50,11 @@ class Project extends Model
             ProjectRisk::class
         );
     }
+
+    public function actions(): HasMany
+    {
+        return $this->hasMany(
+            ProjectAction::class
+        );
+    }
 }
