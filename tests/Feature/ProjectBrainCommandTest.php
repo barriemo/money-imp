@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Project;
 use App\Models\ProjectAction;
+use App\Models\ProjectActionEvidence;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -18,10 +19,17 @@ class ProjectBrainCommandTest extends TestCase
             'commercial_value' => 150000,
         ]);
 
-        ProjectAction::factory()->create([
+        $action = ProjectAction::factory()->create([
             'project_id' => $project->id,
             'action' => 'Improve customer onboarding',
             'priority' => 'high',
+        ]);
+
+        ProjectActionEvidence::create([
+            'project_action_id' => $action->id,
+            'type' => 'risk',
+            'description' => 'High customer impact detected.',
+            'confidence' => 90,
         ]);
 
         $this->artisan(
@@ -35,6 +43,9 @@ class ProjectBrainCommandTest extends TestCase
             )
             ->expectsOutputToContain(
                 'Improve customer onboarding'
+            )
+            ->expectsOutputToContain(
+                'URGENT'
             )
             ->assertSuccessful();
     }

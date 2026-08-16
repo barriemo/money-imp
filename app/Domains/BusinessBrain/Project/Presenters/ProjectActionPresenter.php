@@ -9,6 +9,7 @@ class ProjectActionPresenter
     public function present(ProjectAction $action): array
     {
         return [
+            'project' => $action->project?->name,
             'action' => $action->action,
             'priority' => $action->priority,
             'status' => $action->status,
