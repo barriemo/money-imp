@@ -87,6 +87,28 @@ class ProjectRecommendationService
             );
         }
 
-        return $recommendations;
+        return $recommendations
+            ->sortBy(
+                fn (ProjectRecommendation $recommendation) => $this->priorityWeight(
+                    $recommendation->priority
+                )
+            )
+            ->values();
+    }
+
+    private function priorityWeight(
+        string $priority
+    ): int {
+        return match ($priority) {
+            'critical' => 1,
+
+            'high' => 2,
+
+            'medium' => 3,
+
+            'low' => 4,
+
+            default => 5,
+        };
     }
 }

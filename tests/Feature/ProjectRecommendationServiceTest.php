@@ -105,4 +105,35 @@ class ProjectRecommendationServiceTest extends TestCase
             $recommendations
         );
     }
+
+    public function test_high_priority_recommendations_appear_before_medium(): void
+    {
+        $project =
+            Project::create([
+                'name' => 'Mixed Issues Project',
+                'status' => 'active',
+            ]);
+
+        ProjectUpdateRequest::create([
+            'project_id' => $project->id,
+            'reason' => 'Waiting for update',
+            'status' => 'open',
+        ]);
+
+        ProjectRisk::create([
+            'project_id' => $project->id,
+            'description' => 'Critical blocker',
+            'severity' => 'high',
+            'status' => 'open',
+        ]);
+
+        $recommendations =
+            app(ProjectRecommendationService::class)
+                ->for($project);
+
+        $this->assertSame(
+            'high',
+            $recommendations->first()->priority
+        );
+    }
 }
