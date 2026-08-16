@@ -2,6 +2,8 @@
 
 namespace App\Domains\Accounting\FreeAgent\Services;
 
+use App\Domains\BusinessBrain\Investigation\EvidenceBus\EvidenceChange;
+use App\Domains\BusinessBrain\Investigation\EvidenceBus\InvestigationEvidenceBus;
 use App\Models\AccountingInvoice;
 use App\Models\AccountingInvoiceItem;
 use App\Models\Client;
@@ -17,6 +19,7 @@ class FreeAgentInvoiceSyncService
 {
     public function __construct(
         private readonly FreeAgentClient $client,
+        private readonly InvestigationEvidenceBus $evidenceBus,
     ) {}
 
     public function sync(ExternalConnection $connection): SyncRun
@@ -71,6 +74,29 @@ class FreeAgentInvoiceSyncService
                 $page++;
             } while (count($invoices) === 100);
 
+            $run->refresh();
+
+            if (
+                $run->records_created > 0
+                || $run->records_updated > 0
+            ) {
+                $this->evidenceBus
+                    ->publish(
+                        new EvidenceChange(
+                            domain: 'accounting',
+                            type: 'invoices_changed',
+                            metadata: [
+                                'connection_id' => $connection->id,
+                                'sync_run_id' => $run->id,
+                                'records_seen' => (int) $run->records_seen,
+                                'records_created' => (int) $run->records_created,
+                                'records_updated' => (int) $run->records_updated,
+                                'records_failed' => (int) $run->records_failed,
+                            ]
+                        )
+                    );
+            }
+
             $run->update([
                 'status' => $run->records_failed > 0
                     ? 'completed_with_errors'
@@ -102,6 +128,15 @@ class FreeAgentInvoiceSyncService
         ): void {
             $externalId = $this->externalId($source);
 
+            $sourceHash =
+                hash(
+                    'sha256',
+                    json_encode(
+                        $source,
+                        JSON_THROW_ON_ERROR
+                    )
+                );
+
             $client = $this->resolveClient(
                 $connection,
                 (string) ($source['contact'] ?? '')
@@ -112,6 +147,13 @@ class FreeAgentInvoiceSyncService
                 ->where('resource_type', 'invoice')
                 ->where('external_id', $externalId)
                 ->first();
+
+            if (
+                $externalRecord !== null
+                && $externalRecord->source_hash === $sourceHash
+            ) {
+                return;
+            }
 
             $attributes = [
                 'client_id' => $client?->id,
@@ -181,10 +223,7 @@ class FreeAgentInvoiceSyncService
                     'external_created_at' => $source['created_at'] ?? null,
                     'external_updated_at' => $source['updated_at'] ?? null,
                     'last_synced_at' => now(),
-                    'source_hash' => hash(
-                        'sha256',
-                        json_encode($source, JSON_THROW_ON_ERROR)
-                    ),
+                    'source_hash' => $sourceHash,
                     'payload' => $source,
                 ]
             );

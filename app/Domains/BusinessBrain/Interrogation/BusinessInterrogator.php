@@ -4,9 +4,11 @@ namespace App\Domains\BusinessBrain\Interrogation;
 
 use App\Domains\BusinessBrain\Actions\ExecutiveActionService;
 use App\Domains\BusinessBrain\Attention\Context\AttentionContext;
+use App\Domains\BusinessBrain\CashTruth\CashTruthService;
 use App\Domains\BusinessBrain\Decisions\BusinessDecisionService;
 use App\Domains\BusinessBrain\Decisions\Outcomes\BusinessDecisionOutcomeService;
 use App\Domains\BusinessBrain\Evidence\ClientPaymentEvidenceSummaryService;
+use App\Domains\BusinessBrain\FinancialPosition\FinancialPositionService;
 use App\Domains\BusinessBrain\Interrogation\Attention\ClientAttentionService;
 use App\Domains\BusinessBrain\Interrogation\Coverage\BusinessCoverageSummaryService;
 use App\Domains\BusinessBrain\Interrogation\Coverage\BusinessTruthCoverageService;
@@ -52,7 +54,11 @@ class BusinessInterrogator
 
         private LearningConfidenceService $learningConfidence,
 
-        private ExecutiveActionService $executiveActions
+        private ExecutiveActionService $executiveActions,
+
+        private CashTruthService $cashTruth,
+
+        private FinancialPositionService $financialPosition
     ) {}
 
     public function ask(
@@ -286,6 +292,25 @@ class BusinessInterrogator
             )
         ) {
             return $this->waitingActions(
+                $question
+            );
+        }
+
+        if (
+            in_array(
+                $normalised,
+                [
+                    'what is our cash position?',
+                    'what is our cash position',
+                    'what\'s our cash position?',
+                    'what\'s our cash position',
+                    'how much cash do we have?',
+                    'how much cash do we have',
+                ],
+                true
+            )
+        ) {
+            return $this->cashPosition(
                 $question
             );
         }
@@ -1800,6 +1825,147 @@ class BusinessInterrogator
                 ->all(),
 
             confidence: 100,
+
+            asOf: now()
+        );
+    }
+
+    private function cashPosition(
+        BusinessQuestion $question
+    ): BusinessAnswer {
+        $position =
+            $this->financialPosition
+                ->current();
+
+        $cash =
+            $position->cash;
+
+        $credit =
+            $position->credit;
+
+        $liabilities =
+            $position->liabilities;
+
+        $receivables =
+            $position->receivables;
+
+        $safeCashStatement =
+            $cash->safeAvailableCash !== null
+                ? sprintf(
+                    'Safe available cash is £%s.',
+                    number_format(
+                        $cash->safeAvailableCash,
+                        2
+                    )
+                )
+                : 'Safe available cash cannot yet be stated reliably because liability and/or banking coverage is incomplete.';
+
+        return new BusinessAnswer(
+            question: $question->question,
+
+            answer: sprintf(
+                'CFO Imp can currently verify £%s of bank cash and £%s of verified credit exposure. FreeAgent reports £%s across bank ledger accounts, but that is accounting-system evidence and is not verified current bank cash. A further £%s of historic card exposure is reported but unverified. Ledger receivables total £%s, but collectible value is not yet verified. Known liabilities total £%s with liability coverage at %d%%. %s',
+                number_format(
+                    $cash->verifiedCash,
+                    2
+                ),
+                number_format(
+                    $credit->verifiedExposure,
+                    2
+                ),
+                number_format(
+                    $cash->reportedAccountingBalance,
+                    2
+                ),
+                number_format(
+                    $cash->reportedUnverifiedCardDebt,
+                    2
+                ),
+                number_format(
+                    $receivables->ledgerOutstanding,
+                    2
+                ),
+                number_format(
+                    $liabilities->known,
+                    2
+                ),
+                $liabilities->confidence,
+                $safeCashStatement
+            ),
+
+            facts: [
+                'verified_bank_cash' => $cash
+                    ->verifiedCash,
+
+                'reported_accounting_balance' => $cash
+                    ->reportedAccountingBalance,
+
+                'reported_unverified_card_debt' => $cash
+                    ->reportedUnverifiedCardDebt,
+
+                'verified_credit_exposure' => $credit
+                    ->verifiedExposure,
+
+                'reported_credit_exposure' => $credit
+                    ->reportedExposure,
+
+                'minimum_credit_payments_due' => $credit
+                    ->minimumPaymentsDue,
+
+                'ledger_receivables' => $receivables
+                    ->ledgerOutstanding,
+
+                'verified_collectible_receivables' => $receivables
+                    ->verifiedCollectible,
+
+                'known_liabilities' => $liabilities
+                    ->known,
+
+                'liability_coverage_complete' => $liabilities
+                    ->coverageComplete,
+
+                'safe_available_cash' => $cash
+                    ->safeAvailableCash,
+
+                'financial_position_confidence' => $position
+                    ->confidence,
+            ],
+
+            evidence: $credit
+                ->facilities
+                ->map(
+                    fn ($facility) => [
+                        'type' => 'credit_facility',
+
+                        'provider' => $facility
+                            ->provider,
+
+                        'name' => $facility
+                            ->name,
+
+                        'balance' => $facility
+                            ->reportedBalance,
+
+                        'minimum_payment' => $facility
+                            ->minimumPayment,
+
+                        'payment_due_at' => $facility
+                            ->paymentDueAt,
+
+                        'verified' => $facility
+                            ->verified,
+
+                        'confidence' => $facility
+                            ->confidence,
+
+                        'balance_at' => $facility
+                            ->balanceAt,
+                    ]
+                )
+                ->all(),
+
+            confidence: $position
+                ->confidence,
 
             asOf: now()
         );

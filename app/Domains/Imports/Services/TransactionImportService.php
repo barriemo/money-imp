@@ -2,6 +2,7 @@
 
 namespace App\Domains\Imports\Services;
 
+use App\Domains\BusinessBrain\Investigation\EvidenceBus\InvestigationEvidenceBus;
 use App\Domains\Suppliers\Rules\SupplierAttributionAutoApplier;
 use App\Models\BankAccount;
 use App\Models\BankTransaction;
@@ -16,6 +17,7 @@ class TransactionImportService
     public function __construct(
         private readonly StatementParserRegistry $parsers,
         private readonly SupplierAttributionAutoApplier $supplierRules,
+        private readonly InvestigationEvidenceBus $evidenceBus,
     ) {}
 
     public function import(

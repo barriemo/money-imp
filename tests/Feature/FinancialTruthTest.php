@@ -28,7 +28,7 @@ class FinancialTruthTest extends TestCase
 
             'balance' => 12000,
 
-            'source' => 'manual_bank_check',
+            'source' => 'bank_statement',
 
             'balance_at' => now(),
 

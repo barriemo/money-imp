@@ -2,16 +2,118 @@
 
 namespace App\Domains\Imports\Parsers\Pdf;
 
+use App\Domains\Imports\Contracts\CreditStatementParser;
 use App\Domains\Imports\Contracts\StatementParser;
+use App\Domains\Imports\DTOs\CreditStatementSummary;
 use App\Domains\Imports\DTOs\ImportedTransaction;
 use Carbon\CarbonImmutable;
 use Generator;
 
-class CapitalOnTapPdfParser extends AbstractPdfStatementParser implements StatementParser
+class CapitalOnTapPdfParser extends AbstractPdfStatementParser implements CreditStatementParser, StatementParser
 {
     public function provider(): string
     {
         return 'capital_on_tap_pdf';
+    }
+
+    public function statementSummary(
+        string $path
+    ): CreditStatementSummary {
+        $text =
+            preg_replace(
+                '/\s+/u',
+                ' ',
+                $this->text(
+                    $path
+                )
+            ) ?? '';
+
+        if (
+            ! preg_match(
+                '/Statement Summary\s+(?<from>\d{1,2}\s+\w+\s+\d{4})\s*-\s*(?<to>\d{1,2}\s+\w+\s+\d{4})/i',
+                $text,
+                $dates
+            )
+        ) {
+            throw new \RuntimeException(
+                'Could not determine Capital on Tap statement period.'
+            );
+        }
+
+        if (
+            ! preg_match(
+                '/Closing Balance\s+£?(?<value>[\d,]+\.\d{2})/i',
+                $text,
+                $closing
+            )
+        ) {
+            throw new \RuntimeException(
+                'Could not determine Capital on Tap closing balance.'
+            );
+        }
+
+        preg_match(
+            '/Opening Balance\s+£?(?<value>[\d,]+\.\d{2})/i',
+            $text,
+            $opening
+        );
+
+        preg_match(
+            '/Minimum Amount Due:\s*£?(?<value>[\d,]+\.\d{2})/i',
+            $text,
+            $minimum
+        );
+
+        preg_match(
+            '/Due Date\s+(?<date>\d{1,2}\s+\w+\s+\d{4})/i',
+            $text,
+            $due
+        );
+
+        return new CreditStatementSummary(
+            statementFrom: CarbonImmutable::createFromFormat(
+                'j F Y',
+                $dates['from']
+            ),
+
+            statementTo: CarbonImmutable::createFromFormat(
+                'j F Y',
+                $dates['to']
+            ),
+
+            openingBalance: isset(
+                $opening['value']
+            )
+                ? $this->money(
+                    $opening['value']
+                )
+                : null,
+
+            closingBalance: $this->money(
+                $closing['value']
+            ),
+
+            minimumPayment: isset(
+                $minimum['value']
+            )
+                ? $this->money(
+                    $minimum['value']
+                )
+                : null,
+
+            paymentDueAt: isset(
+                $due['date']
+            )
+                ? CarbonImmutable::createFromFormat(
+                    'j F Y',
+                    $due['date']
+                )
+                : null,
+
+            creditLimit: null,
+
+            confidence: 100
+        );
     }
 
     public function parse(string $path): Generator
@@ -213,6 +315,19 @@ class CapitalOnTapPdfParser extends AbstractPdfStatementParser implements Statem
 
         return trim(
             $merchant ?: $description
+        );
+    }
+
+    private function money(
+        string $value
+    ): float {
+        return round(
+            (float) str_replace(
+                ',',
+                '',
+                $value
+            ),
+            2
         );
     }
 }

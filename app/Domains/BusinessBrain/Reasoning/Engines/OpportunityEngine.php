@@ -4,6 +4,7 @@ namespace App\Domains\BusinessBrain\Reasoning\Engines;
 
 use App\Domains\BusinessBrain\Decisions\BusinessDecision;
 use App\Domains\BusinessBrain\Decisions\BusinessDecisionService;
+use App\Domains\BusinessBrain\Learning\LearningScoreModifier;
 use App\Domains\BusinessBrain\Reasoning\ExecutiveReasoning;
 use App\Domains\BusinessBrain\Reasoning\Scoring\ExecutiveReasoningScoreCalculator;
 use Illuminate\Support\Collection;
@@ -13,7 +14,9 @@ class OpportunityEngine
     public function __construct(
         private BusinessDecisionService $decisions,
 
-        private ExecutiveReasoningScoreCalculator $scores
+        private ExecutiveReasoningScoreCalculator $scores,
+
+        private LearningScoreModifier $learning
     ) {}
 
     public function current(): Collection
@@ -39,6 +42,35 @@ class OpportunityEngine
                 $decision
             );
 
+        $baseScore =
+            $this->scores
+                ->calculate(
+                    financialImpact: $decision->value,
+
+                    urgency: $decision->priority,
+
+                    confidence: $decision->confidence,
+
+                    effortMinutes: $effort
+                );
+
+        $learningModifier =
+            $this->learning
+                ->forType(
+                    $this->reasoningType(
+                        $decision
+                    )
+                );
+
+        $finalScore =
+            max(
+                0,
+                min(
+                    100,
+                    $baseScore + $learningModifier
+                )
+            );
+
         return new ExecutiveReasoning(
             type: $this->reasoningType(
                 $decision
@@ -62,16 +94,7 @@ class OpportunityEngine
 
             urgency: $decision->priority,
 
-            score: $this->scores
-                ->calculate(
-                    financialImpact: $decision->value,
-
-                    urgency: $decision->priority,
-
-                    confidence: $decision->confidence,
-
-                    effortMinutes: $effort
-                ),
+            score: $finalScore,
 
             recommendedAction: $decision->action,
 
@@ -83,6 +106,12 @@ class OpportunityEngine
                 'decision_confidence' => $decision->confidence,
 
                 'estimated_effort_source' => 'decision_type_default',
+
+                'base_score' => $baseScore,
+
+                'learning_modifier' => $learningModifier,
+
+                'final_score' => $finalScore,
             ]
         );
     }

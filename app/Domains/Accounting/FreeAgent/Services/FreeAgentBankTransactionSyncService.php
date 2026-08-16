@@ -2,6 +2,8 @@
 
 namespace App\Domains\Accounting\FreeAgent\Services;
 
+use App\Domains\BusinessBrain\Investigation\EvidenceBus\EvidenceChange;
+use App\Domains\BusinessBrain\Investigation\EvidenceBus\InvestigationEvidenceBus;
 use App\Models\BankAccount;
 use App\Models\BankTransaction;
 use App\Models\BankTransactionExplanation;
@@ -16,6 +18,7 @@ class FreeAgentBankTransactionSyncService
 {
     public function __construct(
         private readonly FreeAgentClient $client,
+        private readonly InvestigationEvidenceBus $evidenceBus,
     ) {}
 
     public function sync(ExternalConnection $connection): SyncRun
@@ -46,6 +49,27 @@ class FreeAgentBankTransactionSyncService
                     (string) $accountRecord->external_reference,
                     $run
                 );
+            }
+
+            if (
+                $run->records_created > 0
+                || $run->records_updated > 0
+            ) {
+                $this->evidenceBus
+                    ->publish(
+                        new EvidenceChange(
+                            domain: 'bank',
+                            type: 'bank_transactions_changed',
+                            metadata: [
+                                'connection_id' => $connection->id,
+                                'sync_run_id' => $run->id,
+                                'records_seen' => (int) $run->records_seen,
+                                'records_created' => (int) $run->records_created,
+                                'records_updated' => (int) $run->records_updated,
+                                'records_failed' => (int) $run->records_failed,
+                            ]
+                        )
+                    );
             }
 
             $run->update([

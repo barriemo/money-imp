@@ -2,6 +2,7 @@
 
 namespace App\Domains\Imports\Services;
 
+use App\Domains\BusinessBrain\CreditTruth\CreditStatementProcessingService;
 use App\Models\ImportBatch;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -10,7 +11,10 @@ class PendingStatementImportService
 {
     public function __construct(
         private StatementAccountResolver $accounts,
-        private TransactionImportService $transactions
+
+        private TransactionImportService $transactions,
+
+        private CreditStatementProcessingService $creditStatements
     ) {}
 
     public function process(
@@ -24,26 +28,26 @@ class PendingStatementImportService
             'failed' => 0,
         ];
 
-        $batches = ImportBatch::query()
-            ->where('source_type', 'statement')
-            ->where('status', 'pending_review')
-            ->oldest('created_at')
-            ->get();
+        $batches =
+            ImportBatch::query()
+                ->where(
+                    'source_type',
+                    'statement'
+                )
+                ->where(
+                    'status',
+                    'pending_review'
+                )
+                ->oldest(
+                    'created_at'
+                )
+                ->get();
 
         foreach ($batches as $intake) {
-            $provider = $intake->provider;
+            $provider =
+                $intake->provider;
 
             if (! $provider) {
-                $summary['needs_review']++;
-
-                continue;
-            }
-
-            $account = $this->accounts->resolve(
-                $provider
-            );
-
-            if (! $account) {
                 $summary['needs_review']++;
 
                 continue;
@@ -63,6 +67,8 @@ class PendingStatementImportService
 
                         'error' => 'Stored import file is missing.',
                     ],
+
+                    'finished_at' => now(),
                 ]);
 
                 $summary['failed']++;
@@ -71,28 +77,70 @@ class PendingStatementImportService
             }
 
             try {
-                $transactionBatch =
-                    $this->transactions->import(
-                        Storage::path(
-                            $intake->storage_path
-                        ),
-                        $provider,
-                        $account,
-                        $userId
+                $path =
+                    Storage::path(
+                        $intake->storage_path
                     );
+
+                /*
+                 * Credit-capable statements are financial
+                 * evidence first, not bank accounts.
+                 */
+                if (
+                    $this->creditStatements
+                        ->supports(
+                            $provider
+                        )
+                ) {
+                    $this->creditStatements
+                        ->process(
+                            batch: $intake,
+
+                            path: $path
+                        );
+
+                    $summary['processed']++;
+
+                    continue;
+                }
+
+                $account =
+                    $this->accounts
+                        ->resolve(
+                            $provider
+                        );
+
+                if (! $account) {
+                    $summary['needs_review']++;
+
+                    continue;
+                }
+
+                $transactionBatch =
+                    $this->transactions
+                        ->import(
+                            $path,
+                            $provider,
+                            $account,
+                            $userId
+                        );
 
                 $intake->update([
                     'bank_account_id' => $account->id,
 
                     'status' => 'completed',
 
-                    'rows_seen' => $transactionBatch->rows_seen,
+                    'rows_seen' => $transactionBatch
+                        ->rows_seen,
 
-                    'rows_imported' => $transactionBatch->rows_imported,
+                    'rows_imported' => $transactionBatch
+                        ->rows_imported,
 
-                    'rows_skipped' => $transactionBatch->rows_skipped,
+                    'rows_skipped' => $transactionBatch
+                        ->rows_skipped,
 
-                    'rows_failed' => $transactionBatch->rows_failed,
+                    'rows_failed' => $transactionBatch
+                        ->rows_failed,
 
                     'finished_at' => now(),
 
@@ -108,10 +156,12 @@ class PendingStatementImportService
                 $summary['processed']++;
 
                 $summary['imported_rows'] +=
-                    $transactionBatch->rows_imported;
+                    $transactionBatch
+                        ->rows_imported;
 
                 $summary['duplicates'] +=
-                    $transactionBatch->rows_skipped;
+                    $transactionBatch
+                        ->rows_skipped;
             } catch (Throwable $exception) {
                 $intake->update([
                     'status' => 'failed',
@@ -119,7 +169,8 @@ class PendingStatementImportService
                     'metadata' => [
                         ...($intake->metadata ?? []),
 
-                        'error' => $exception->getMessage(),
+                        'error' => $exception
+                            ->getMessage(),
                     ],
 
                     'finished_at' => now(),

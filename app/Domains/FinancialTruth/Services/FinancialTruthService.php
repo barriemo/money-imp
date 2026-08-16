@@ -18,13 +18,34 @@ class FinancialTruthService
 
         $accountTruth = $accounts->map(
             function (BankAccount $account): array {
+                $reportedSnapshot = AccountBalanceSnapshot::query()
+                    ->where(
+                        'bank_account_id',
+                        $account->id
+                    )
+                    ->latest('balance_at')
+                    ->first();
+
                 $snapshot = AccountBalanceSnapshot::query()
                     ->where(
                         'bank_account_id',
                         $account->id
                     )
-                    ->where('verified', true)
-                    ->latest('balance_at')
+                    ->where(
+                        'verified',
+                        true
+                    )
+                    ->whereIn(
+                        'source',
+                        [
+                            'open_banking',
+                            'bank_statement',
+                            'bank_balance_export',
+                        ]
+                    )
+                    ->latest(
+                        'balance_at'
+                    )
                     ->first();
 
                 return [
@@ -32,17 +53,29 @@ class FinancialTruthService
                     'name' => $account->name,
                     'type' => $account->account_type,
 
+                    /*
+                     * balance is trusted Financial Truth.
+                     *
+                     * reported_balance is evidence we know about
+                     * but have not necessarily verified.
+                     */
                     'balance' => $snapshot
                         ? (float) $snapshot->balance
                         : null,
 
                     'balance_at' => $snapshot?->balance_at,
 
+                    'reported_balance' => $reportedSnapshot
+                        ? (float) $reportedSnapshot->balance
+                        : null,
+
+                    'reported_balance_at' => $reportedSnapshot?->balance_at,
+
                     'verified' => $snapshot !== null,
 
-                    'confidence' => $snapshot?->confidence ?? 0,
+                    'confidence' => $reportedSnapshot?->confidence ?? 0,
 
-                    'source' => $snapshot?->source,
+                    'source' => $reportedSnapshot?->source,
                 ];
             }
         );

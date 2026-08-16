@@ -1,0 +1,10 @@
+<?php
+
+namespace Domains\Businesses\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Business extends Model
+{
+    protected $guarded = [];
+}
