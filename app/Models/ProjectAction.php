@@ -130,4 +130,11 @@ class ProjectAction extends Model
             ProjectActionRecommendation::class
         );
     }
+
+    public function commitments(): HasMany
+    {
+        return $this->hasMany(
+            ProjectActionCommitment::class
+        );
+    }
 }
