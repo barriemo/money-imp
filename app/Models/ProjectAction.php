@@ -137,4 +137,11 @@ class ProjectAction extends Model
             ProjectActionCommitment::class
         );
     }
+
+    public function learnings(): HasMany
+    {
+        return $this->hasMany(
+            ProjectActionLearning::class
+        );
+    }
 }
