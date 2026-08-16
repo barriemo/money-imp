@@ -9,27 +9,33 @@ class ProjectActionPrioritiser
     public function prioritise(ProjectAction $action): array
     {
         $score = 0;
+        $drivers = [];
 
         if ($action->priority === 'critical') {
             $score += 40;
+            $drivers[] = 'Critical priority action';
         }
 
         if ($action->priority === 'high') {
             $score += 40;
+            $drivers[] = 'High priority action';
         }
 
         if ($action->evidence->max('confidence') >= 80) {
             $score += 20;
+            $drivers[] = 'Strong evidence confidence';
         }
 
         if ($action->project?->commercial_value >= 100000) {
             $score += 20;
+            $drivers[] = 'High commercial value';
         }
 
         return [
             'score' => $score,
             'category' => $this->category($score),
             'reason' => $this->reason($score),
+            'drivers' => $drivers,
         ];
     }
 
