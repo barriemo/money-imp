@@ -91,4 +91,9 @@ class ProjectAction extends Model
     {
         return $this->hasMany(ProjectActionEvidence::class);
     }
+
+    public function events(): HasMany
+    {
+        return $this->hasMany(ProjectActionEvent::class);
+    }
 }
