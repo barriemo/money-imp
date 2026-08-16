@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Domains\BusinessBrain\Project\Presenters\ProjectActionPresenter;
+use App\Domains\BusinessBrain\Project\Presenters\ProjectActionTimelinePresenter;
 use App\Models\ProjectAction;
 use Illuminate\Console\Command;
 
@@ -13,13 +14,15 @@ class ProjectActionsCommand extends Command
     protected $description = 'Show Project Imp action queue';
 
     public function handle(
-        ProjectActionPresenter $presenter
+        ProjectActionPresenter $presenter,
+        ProjectActionTimelinePresenter $timelinePresenter
     ): int {
         $actions =
             ProjectAction::query()
                 ->with([
                     'project',
                     'evidence',
+                    'events',
                 ])
                 ->where(
                     'status',
@@ -70,6 +73,15 @@ class ProjectActionsCommand extends Command
             foreach ($data['evidence'] as $evidence) {
                 $this->line(
                     'Evidence: '.$evidence['description']
+                );
+            }
+
+            $timeline =
+                $timelinePresenter->present($action);
+
+            foreach ($timeline['timeline'] as $event) {
+                $this->line(
+                    'Timeline: '.$event['type']
                 );
             }
         }
