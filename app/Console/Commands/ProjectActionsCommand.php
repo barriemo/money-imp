@@ -23,6 +23,7 @@ class ProjectActionsCommand extends Command
                     'project',
                     'evidence',
                     'events',
+                    'outcomes',
                 ])
                 ->where(
                     'status',

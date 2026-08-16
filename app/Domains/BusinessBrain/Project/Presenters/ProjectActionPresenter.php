@@ -23,6 +23,17 @@ class ProjectActionPresenter
                 ])
                 ->values()
                 ->all(),
+
+            'outcomes' => $action->outcomes
+                ->map(fn ($outcome) => [
+                    'type' => $outcome->type,
+                    'description' => $outcome->description,
+                    'metric' => $outcome->metric,
+                    'value' => $outcome->value,
+                    'confidence' => $outcome->confidence,
+                ])
+                ->values()
+                ->all(),
         ];
     }
 }
