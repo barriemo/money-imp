@@ -3,6 +3,7 @@
 namespace App\Domains\BusinessBrain\Project\Presenters;
 
 use App\Domains\BusinessBrain\Project\Services\ProjectActionOutcomeEvaluator;
+use App\Domains\BusinessBrain\Project\Services\ProjectActionPrioritiser;
 use App\Models\ProjectAction;
 
 class ProjectActionIntelligencePresenter
@@ -11,6 +12,7 @@ class ProjectActionIntelligencePresenter
         protected ProjectActionPresenter $actionPresenter,
         protected ProjectActionTimelinePresenter $timelinePresenter,
         protected ProjectActionOutcomeEvaluator $evaluator,
+        protected ProjectActionPrioritiser $prioritiser,
     ) {}
 
     public function present(ProjectAction $action): array
@@ -19,6 +21,7 @@ class ProjectActionIntelligencePresenter
             'evidence',
             'outcomes',
             'events',
+            'project',
         ]);
 
         return [
@@ -32,6 +35,8 @@ class ProjectActionIntelligencePresenter
                 )
                 ->values()
                 ->all(),
+
+            'priority' => $this->prioritiser->prioritise($action),
         ];
     }
 }
