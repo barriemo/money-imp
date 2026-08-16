@@ -109,4 +109,31 @@ class ProjectBriefCommandTest extends TestCase
             )
             ->assertSuccessful();
     }
+
+    public function test_project_brief_command_shows_recommended_actions(): void
+    {
+        $project =
+            Project::create([
+                'name' => 'Walker CRM',
+                'status' => 'active',
+            ]);
+
+        ProjectRisk::create([
+            'project_id' => $project->id,
+            'description' => 'Client approval missing',
+            'severity' => 'high',
+            'status' => 'open',
+        ]);
+
+        $this->artisan(
+            'project:brief'
+        )
+            ->expectsOutputToContain(
+                'Recommended actions:'
+            )
+            ->expectsOutputToContain(
+                'Escalate unresolved project risk.'
+            )
+            ->assertSuccessful();
+    }
 }

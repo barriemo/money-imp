@@ -21,6 +21,8 @@ class ProjectBrief
 
         public array $updateRequests,
 
+        public array $recommendations,
+
         public CarbonImmutable $asOf
     ) {}
 }

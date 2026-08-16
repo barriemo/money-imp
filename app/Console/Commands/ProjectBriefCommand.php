@@ -98,6 +98,24 @@ class ProjectBriefCommand extends Command
         }
 
         if (
+            count($brief->recommendations) > 0
+        ) {
+            $this->newLine();
+
+            $this->line(
+                'Recommended actions:'
+            );
+
+            foreach (
+                $brief->recommendations as $recommendation
+            ) {
+                $this->line(
+                    '- '.$recommendation->action
+                );
+            }
+        }
+
+        if (
             count($brief->overdueDeliverables) > 0
         ) {
             $this->newLine();

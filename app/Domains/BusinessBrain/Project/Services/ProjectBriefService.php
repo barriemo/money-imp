@@ -12,7 +12,9 @@ class ProjectBriefService
     public function __construct(
         private ProjectHealthService $health,
 
-        private DeliverableHealthService $deliverableHealth
+        private DeliverableHealthService $deliverableHealth,
+
+        private ProjectRecommendationService $recommendations
     ) {}
 
     public function current(): ProjectBrief
@@ -170,6 +172,14 @@ class ProjectBriefService
                                 }
                             );
                     }
+                )
+                ->values()
+                ->all(),
+
+            recommendations: $projects
+                ->flatMap(
+                    fn (Project $project) => $this->recommendations
+                        ->for($project)
                 )
                 ->values()
                 ->all(),
