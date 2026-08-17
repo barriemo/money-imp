@@ -99,7 +99,7 @@ class RevenueTruthSummaryService
                 $truths
                     ->avg(
                         'commercialConfidence'
-                    )
+                    ) ?? 0
             ),
 
             gaps: $gaps

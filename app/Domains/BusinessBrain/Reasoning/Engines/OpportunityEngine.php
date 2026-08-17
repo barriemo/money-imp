@@ -2,6 +2,7 @@
 
 namespace App\Domains\BusinessBrain\Reasoning\Engines;
 
+use App\Domains\BusinessBrain\Actions\ExecutiveActionFingerprint;
 use App\Domains\BusinessBrain\Decisions\BusinessDecision;
 use App\Domains\BusinessBrain\Decisions\BusinessDecisionService;
 use App\Domains\BusinessBrain\Learning\LearningScoreModifier;
@@ -16,16 +17,35 @@ class OpportunityEngine
 
         private ExecutiveReasoningScoreCalculator $scores,
 
-        private LearningScoreModifier $learning
+        private LearningScoreModifier $learning,
+
+        private CashManagementReasoningEngine $cash
     ) {}
 
     public function current(): Collection
     {
-        return $this->decisions
-            ->today()
-            ->map(
-                fn (BusinessDecision $decision) => $this->fromDecision(
-                    $decision
+        $business =
+            $this->decisions
+                ->today()
+                ->map(
+                    fn (BusinessDecision $decision) => $this->fromDecision(
+                        $decision
+                    )
+                );
+
+        $cash =
+            $this->cash
+                ->current();
+
+        return $business
+            ->merge(
+                $cash
+            )
+            ->unique(
+                fn (ExecutiveReasoning $reasoning) => app(
+                    ExecutiveActionFingerprint::class
+                )->make(
+                    $reasoning
                 )
             )
             ->sortByDesc(

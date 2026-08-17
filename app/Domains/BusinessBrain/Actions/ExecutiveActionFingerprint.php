@@ -17,7 +17,6 @@ class ExecutiveActionFingerprint
                     $reasoning->type,
                     $reasoning->clientId ?? 'business',
                     $reasoning->title,
-                    $reasoning->recommendedAction,
                 ]
             )
         );
