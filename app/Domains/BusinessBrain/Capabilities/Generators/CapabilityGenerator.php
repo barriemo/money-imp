@@ -7,7 +7,8 @@ class CapabilityGenerator
     public function __construct(
         protected ModelGenerator $models,
         protected MigrationGenerator $migrations,
-        protected FactoryGenerator $factories
+        protected FactoryGenerator $factories,
+        protected TestGenerator $tests
     ) {}
 
     public function generate(
@@ -19,5 +20,7 @@ class CapabilityGenerator
         $this->migrations->generate($name);
 
         $this->factories->generate($name);
+
+        $this->tests->generate($name);
     }
 }
