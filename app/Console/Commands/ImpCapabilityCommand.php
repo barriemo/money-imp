@@ -49,9 +49,7 @@ class ImpCapabilityCommand extends Command
         );
 
         $this->generator->generate(
-            $capability->name,
-            $capability->domain,
-            $capability->area
+            $capability
         );
 
         $this->info(

@@ -2,6 +2,8 @@
 
 namespace App\Domains\BusinessBrain\Capabilities\Generators;
 
+use App\Models\CapabilityDefinition;
+
 class CapabilityGenerator
 {
     public function __construct(
@@ -14,41 +16,32 @@ class CapabilityGenerator
     ) {}
 
     public function generate(
-        string $name,
-        string $domain
+        CapabilityDefinition $capability
     ): void {
-        $area = $this->resolveArea($name);
+        $name = $capability->name;
 
-        $this->models->generate($name);
+        $domain = $capability->domain;
 
-        $this->migrations->generate($name);
+        $area = $capability->area;
 
-        $this->factories->generate($name);
-
-        $this->tests->generate($name);
-
-        $this->services->generate(
-            $name,
-            $domain,
-            $area
-        );
-
-        $this->presenters->generate(
-            $name,
-            $domain,
-            $area
-        );
-    }
-
-    protected function resolveArea(string $name): string
-    {
-        return match (true) {
-            str_contains($name, 'ClientRequest'),
-            str_contains($name, 'ClientAdvocacy') => 'Client',
-
-            str_contains($name, 'ProjectAction') => 'Project',
-
-            default => 'Core',
-        };
+        foreach ($capability->layers as $layer) {
+            match ($layer) {
+                'model' => $this->models->generate($name),
+                'migration' => $this->migrations->generate($name),
+                'factory' => $this->factories->generate($name),
+                'test' => $this->tests->generate($name),
+                'service' => $this->services->generate(
+                    $name,
+                    $domain,
+                    $area
+                ),
+                'presenter' => $this->presenters->generate(
+                    $name,
+                    $domain,
+                    $area
+                ),
+                default => null,
+            };
+        }
     }
 }
