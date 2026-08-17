@@ -3,18 +3,19 @@
 namespace App\Console\Commands;
 
 use App\Domains\BusinessBrain\Capabilities\Generators\CapabilityGenerator;
+use App\Domains\BusinessBrain\Capabilities\Services\CapabilityRegistry;
 use Illuminate\Console\Command;
 
 class ImpCapabilityCommand extends Command
 {
     protected $signature = 'imp:capability
-        {name}
-        {--domain=BusinessBrain}';
+        {name}';
 
     protected $description = 'Generate a Money Imp capability scaffold';
 
     public function __construct(
-        protected CapabilityGenerator $generator
+        protected CapabilityGenerator $generator,
+        protected CapabilityRegistry $registry
     ) {
         parent::__construct();
     }
@@ -23,19 +24,34 @@ class ImpCapabilityCommand extends Command
     {
         $name = $this->argument('name');
 
-        $domain = $this->option('domain');
+        $capability = $this->registry->find(
+            $name
+        );
+
+        if (! $capability) {
+            $this->error(
+                "Capability definition not found: {$name}"
+            );
+
+            return self::FAILURE;
+        }
 
         $this->info(
-            "Generating capability: {$name}"
+            "Generating capability: {$capability->name}"
         );
 
         $this->info(
-            "Domain: {$domain}"
+            "Domain: {$capability->domain}"
+        );
+
+        $this->info(
+            "Area: {$capability->area}"
         );
 
         $this->generator->generate(
-            $name,
-            $domain
+            $capability->name,
+            $capability->domain,
+            $capability->area
         );
 
         $this->info(
