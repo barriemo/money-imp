@@ -42,14 +42,13 @@ class CapabilityGenerator
 
     protected function resolveArea(string $name): string
     {
-        if (str_contains($name, 'ClientRequest')) {
-            return 'Client';
-        }
+        return match (true) {
+            str_contains($name, 'ClientRequest'),
+            str_contains($name, 'ClientAdvocacy') => 'Client',
 
-        if (str_contains($name, 'ProjectAction')) {
-            return 'Project';
-        }
+            str_contains($name, 'ProjectAction') => 'Project',
 
-        return 'Core';
+            default => 'Core',
+        };
     }
 }
