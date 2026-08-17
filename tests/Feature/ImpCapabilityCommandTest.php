@@ -2,17 +2,33 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Support\Facades\File;
 use Tests\TestCase;
 
 class ImpCapabilityCommandTest extends TestCase
 {
-    /**
-     * A basic feature test example.
-     */
-    public function test_example(): void
+    public function test_capability_generator_creates_model(): void
     {
-        $response = $this->get('/');
+        $path = app_path(
+            'Models/TestGeneratedCapability.php'
+        );
 
-        $response->assertStatus(200);
+        if (File::exists($path)) {
+            File::delete($path);
+        }
+
+        $this->artisan(
+            'imp:capability TestGeneratedCapability --domain=Testing'
+        )
+            ->expectsOutputToContain(
+                'Capability generated'
+            )
+            ->assertSuccessful();
+
+        $this->assertTrue(
+            File::exists($path)
+        );
+
+        File::delete($path);
     }
 }

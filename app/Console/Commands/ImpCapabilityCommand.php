@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Domains\BusinessBrain\Capabilities\Generators\CapabilityGenerator;
 use Illuminate\Console\Command;
-use Illuminate\Filesystem\Filesystem;
 
 class ImpCapabilityCommand extends Command
 {
@@ -12,6 +12,12 @@ class ImpCapabilityCommand extends Command
         {--domain=BusinessBrain}';
 
     protected $description = 'Generate a Money Imp capability scaffold';
+
+    public function __construct(
+        protected CapabilityGenerator $generator
+    ) {
+        parent::__construct();
+    }
 
     public function handle(): int
     {
@@ -27,53 +33,15 @@ class ImpCapabilityCommand extends Command
             "Domain: {$domain}"
         );
 
-        $this->createModel($name);
-
-        return self::SUCCESS;
-    }
-
-    protected function createModel(string $name): void
-    {
-        $path = app_path(
-            "Models/{$name}.php"
-        );
-
-        if ($this->files->exists($path)) {
-            $this->warn(
-                "{$name} model already exists"
-            );
-
-            return;
-        }
-
-        $this->files->put(
-            $path,
-            <<<PHP
-<?php
-
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-
-class {$name} extends Model
-{
-    use HasFactory;
-
-    protected \$fillable = [];
-}
-
-PHP
+        $this->generator->generate(
+            $name,
+            $domain
         );
 
         $this->info(
-            "Created model: {$name}"
+            'Capability generated'
         );
-    }
 
-    public function __construct(
-        protected Filesystem $files
-    ) {
-        parent::__construct();
+        return self::SUCCESS;
     }
 }
