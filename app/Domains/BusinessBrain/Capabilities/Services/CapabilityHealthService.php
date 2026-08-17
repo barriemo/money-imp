@@ -6,6 +6,10 @@ use App\Models\CapabilityDefinition;
 
 class CapabilityHealthService
 {
+    public function __construct(
+        protected CapabilityEvidenceService $evidence
+    ) {}
+
     public function calculate(
         CapabilityDefinition $capability
     ): int {
@@ -15,7 +19,13 @@ class CapabilityHealthService
             default => 0,
         };
 
-        $health += count($capability->layers) * 10;
+        $checks = $this->evidence->inspect(
+            $capability
+        );
+
+        $health += count(
+            array_filter($checks)
+        ) * 10;
 
         return min(
             $health,
