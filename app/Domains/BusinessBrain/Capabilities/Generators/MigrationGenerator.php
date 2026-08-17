@@ -17,6 +17,10 @@ class MigrationGenerator
             Str::pluralStudly($name)
         );
 
+        if ($this->migrationExists($table)) {
+            return;
+        }
+
         $timestamp = now()
             ->format('Y_m_d_His');
 
@@ -51,5 +55,23 @@ return new class extends Migration
 
 PHP
         );
+    }
+
+    protected function migrationExists(string $table): bool
+    {
+        $migrations = $this->files->files(
+            database_path('migrations')
+        );
+
+        foreach ($migrations as $migration) {
+            if (str_contains(
+                $migration->getFilename(),
+                "create_{$table}_table"
+            )) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

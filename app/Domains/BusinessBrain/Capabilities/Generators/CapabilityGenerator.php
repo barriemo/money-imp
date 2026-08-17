@@ -43,5 +43,9 @@ class CapabilityGenerator
                 default => null,
             };
         }
+
+        $capability->update([
+            'status' => 'ready',
+        ]);
     }
 }
