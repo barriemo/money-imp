@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Domains\BusinessBrain\Capabilities\Services\CapabilityHealthService;
 use App\Models\CapabilityDefinition;
 use Illuminate\Console\Command;
 
@@ -11,12 +12,18 @@ class CapabilityHealthCommand extends Command
 
     protected $description = 'Show Money Imp capability health';
 
+    public function __construct(
+        protected CapabilityHealthService $health
+    ) {
+        parent::__construct();
+    }
+
     public function handle(): int
     {
         $capabilities = CapabilityDefinition::all();
 
         foreach ($capabilities as $capability) {
-            $health = $this->calculateHealth(
+            $health = $this->health->calculate(
                 $capability
             );
 
@@ -46,22 +53,5 @@ class CapabilityHealthCommand extends Command
         }
 
         return self::SUCCESS;
-    }
-
-    protected function calculateHealth(
-        CapabilityDefinition $capability
-    ): int {
-        $health = match ($capability->status) {
-            'ready' => 50,
-            'registered' => 25,
-            default => 0,
-        };
-
-        $health += count($capability->layers) * 10;
-
-        return min(
-            $health,
-            100
-        );
     }
 }
