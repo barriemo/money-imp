@@ -9,6 +9,8 @@ class CapabilityRegistry
     public function register(
         array $definition
     ): CapabilityDefinition {
+        $definition['status'] ??= 'registered';
+
         return CapabilityDefinition::updateOrCreate(
             [
                 'name' => $definition['name'],

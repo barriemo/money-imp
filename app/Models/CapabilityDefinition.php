@@ -13,6 +13,7 @@ class CapabilityDefinition extends Model
         'owner',
         'purpose',
         'layers',
+        'status',
     ];
 
     protected $casts = [
