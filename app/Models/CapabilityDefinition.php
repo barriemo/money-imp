@@ -27,4 +27,11 @@ class CapabilityDefinition extends Model
             CapabilityAction::class
         );
     }
+
+    public function executiveActions(): HasMany
+    {
+        return $this->hasMany(
+            ExecutiveAction::class
+        );
+    }
 }

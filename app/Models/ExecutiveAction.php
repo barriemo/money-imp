@@ -6,6 +6,31 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ExecutiveAction extends MoneyImpModel
 {
+    protected $fillable = [
+        'fingerprint',
+        'client_id',
+        'client',
+        'type',
+        'title',
+        'description',
+        'recommended_action',
+        'estimated_financial_impact',
+        'estimated_effort_minutes',
+        'confidence',
+        'urgency',
+        'score',
+        'status',
+        'due_at',
+        'started_at',
+        'completed_at',
+        'verified_at',
+        'outcome',
+        'financial_result',
+        'evidence',
+        'metadata',
+        'capability_definition_id',
+    ];
+
     protected function casts(): array
     {
         return [
@@ -28,6 +53,14 @@ class ExecutiveAction extends MoneyImpModel
     {
         return $this->belongsTo(
             Client::class
+        );
+    }
+
+    public function capability(): BelongsTo
+    {
+        return $this->belongsTo(
+            CapabilityDefinition::class,
+            'capability_definition_id'
         );
     }
 }
