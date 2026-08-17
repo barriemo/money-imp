@@ -13,11 +13,12 @@ class ListCapabilitiesCommand extends Command
 
     public function handle(): int
     {
-        $capabilities = CapabilityDefinition::orderBy(
-            'domain'
-        )->orderBy(
-            'name'
-        )->get();
+        $capabilities = CapabilityDefinition::with(
+            'actions'
+        )
+            ->orderBy('domain')
+            ->orderBy('name')
+            ->get();
 
         if ($capabilities->isEmpty()) {
             $this->info(
@@ -62,6 +63,18 @@ class ListCapabilitiesCommand extends Command
                     $capability->layers
                 )
             );
+
+            if ($capability->actions->isNotEmpty()) {
+                $this->line(
+                    'Actions:'
+                );
+
+                foreach ($capability->actions as $action) {
+                    $this->line(
+                        "- {$action->name}"
+                    );
+                }
+            }
         }
 
         return self::SUCCESS;
