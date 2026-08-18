@@ -19,7 +19,9 @@ class OpportunityEngine
 
         private LearningScoreModifier $learning,
 
-        private CashManagementReasoningEngine $cash
+        private CashManagementReasoningEngine $cash,
+
+        private ReceivableRecoveryReasoningEngine $receivables
     ) {}
 
     public function current(): Collection
@@ -37,9 +39,16 @@ class OpportunityEngine
             $this->cash
                 ->current();
 
+        $receivables =
+            $this->receivables
+                ->current();
+
         return $business
             ->merge(
                 $cash
+            )
+            ->merge(
+                $receivables
             )
             ->unique(
                 fn (ExecutiveReasoning $reasoning) => app(
