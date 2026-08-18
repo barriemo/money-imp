@@ -187,6 +187,50 @@
         Here's where the money is right now.
     </p>
 
+    <div class="section-title">
+        CFO Position
+    </div>
+
+    <section class="actions">
+        <div class="action">
+            <div class="action-left">
+                <div class="dot orange"></div>
+
+                <div>
+                    <strong>
+                        {{ strtoupper($cfo->overallStatus) }}
+                    </strong>
+
+                    <span>
+                        Confidence:
+                        {{ $cfo->overallConfidence }}%
+                    </span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @if (count($cfo->risks))
+        <div class="section-title">
+            Risks
+        </div>
+
+        <section class="actions">
+            @foreach ($cfo->risks as $risk)
+                <div class="action">
+                    <div class="action-left">
+                        <div class="dot red"></div>
+
+                        <div>
+                            <span>{{ $risk }}</span>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </section>
+    @endif
+
+
     <section class="metrics">
         <div class="metric">
             <strong>
