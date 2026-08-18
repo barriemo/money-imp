@@ -34,7 +34,7 @@ class ReceivableRealityService
             overdueInvoiceCount: $overdue
                 ->count(),
 
-            confidence: 100,
+            confidence: 0,
 
             priorityInvoices: $invoices
                 ->sortByDesc(
