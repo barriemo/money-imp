@@ -29,6 +29,9 @@ class OpportunityEngine
         $business =
             $this->decisions
                 ->today()
+                ->reject(
+                    fn (BusinessDecision $decision) => $decision->type === 'collections'
+                )
                 ->map(
                     fn (BusinessDecision $decision) => $this->fromDecision(
                         $decision
