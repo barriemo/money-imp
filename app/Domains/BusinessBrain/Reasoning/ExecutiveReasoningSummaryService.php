@@ -25,15 +25,20 @@ class ExecutiveReasoningSummaryService
                         && $item->estimatedEffortMinutes <= 30
                 );
 
+        $highestOpportunity =
+            $items
+                ->sortByDesc(
+                    'estimatedFinancialImpact'
+                )
+                ->first();
+
         return new ExecutiveReasoningSummary(
             opportunityCount: $items->count(),
 
-            knownFinancialImpact: (float) $items
-                ->sum(
-                    fn (ExecutiveReasoning $item) => $item
-                        ->estimatedFinancialImpact
-                        ?? 0
-                ),
+            knownFinancialImpact: (float) (
+                $highestOpportunity?->estimatedFinancialImpact
+                ?? 0
+            ),
 
             quickWinFinancialImpact: (float) $quickWins
                 ->sum(
@@ -72,8 +77,7 @@ class ExecutiveReasoningSummaryService
                 )
                 ->count(),
 
-            highestOpportunity: $items
-                ->first(),
+            highestOpportunity: $highestOpportunity,
 
             topOpportunities: $items
                 ->take(
