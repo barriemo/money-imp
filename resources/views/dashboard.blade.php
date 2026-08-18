@@ -274,7 +274,45 @@
             <span>Invoice drafts</span>
         </div>
     </section>
+<div class="section-title">
+    Executive priorities
+</div>
 
+<section class="actions">
+    @forelse ($executiveActions as $action)
+
+        <div class="action">
+            <div class="action-left">
+                <div class="dot red"></div>
+
+                <div>
+                    <strong>
+                        [{{ $action->score }}]
+                        {{ $action->title }}
+                    </strong>
+
+                    <span>
+                        £{{ number_format(
+                            $action->estimated_financial_impact,
+                            2
+                        ) }}
+                        ·
+                        {{ $action->recommended_action }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+    @empty
+
+        <div class="action">
+            <strong>
+                No executive priorities.
+            </strong>
+        </div>
+
+    @endforelse
+</section>
     <div class="section-title">
         Needs your attention
     </div>
