@@ -245,6 +245,72 @@ class FinancialTruthService
                             ]
                         )
                         ->sum('amount'),
+
+                'coverage' => [
+                    'record_count' => $liabilities->count(),
+                    'verified_record_count' => $verifiedLiabilities->count(),
+
+                    'records_complete' => $liabilities->count() > 0
+                        && $verifiedLiabilities->count() === $liabilities->count(),
+
+                    'complete' => false,
+
+                    'categories' => [
+                        'vat' => $verifiedLiabilities
+                            ->contains(
+                                fn ($liability) => $liability->type === 'vat'
+                            ),
+
+                        'paye' => $verifiedLiabilities
+                            ->contains(
+                                fn ($liability) => $liability->type === 'paye'
+                            ),
+
+                        'employer_nic' => $verifiedLiabilities
+                            ->contains(
+                                fn ($liability) => in_array(
+                                    $liability->type,
+                                    [
+                                        'employer_nic',
+                                        'employer_national_insurance',
+                                        'nic',
+                                    ],
+                                    true
+                                )
+                            ),
+
+                        'payroll' => $verifiedLiabilities
+                            ->contains(
+                                fn ($liability) => in_array(
+                                    $liability->type,
+                                    [
+                                        'payroll',
+                                        'wages',
+                                        'salary',
+                                    ],
+                                    true
+                                )
+                            ),
+
+                        'other' => $verifiedLiabilities
+                            ->contains(
+                                fn ($liability) => ! in_array(
+                                    $liability->type,
+                                    [
+                                        'vat',
+                                        'paye',
+                                        'employer_nic',
+                                        'employer_national_insurance',
+                                        'nic',
+                                        'payroll',
+                                        'wages',
+                                        'salary',
+                                    ],
+                                    true
+                                )
+                            ),
+                    ],
+                ],
             ],
 
             'confidence' => [

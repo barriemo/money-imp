@@ -91,7 +91,7 @@ class FinancialTruthController extends Controller
         $validated = $request->validate([
             'type' => [
                 'required',
-                'in:vat,paye,corporation_tax,loan,creditor,other',
+                'in:vat,paye,employer_nic,payroll,corporation_tax,loan,creditor,other',
             ],
             'name' => [
                 'required',

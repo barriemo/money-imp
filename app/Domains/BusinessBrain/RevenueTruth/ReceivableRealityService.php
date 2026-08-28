@@ -3,6 +3,7 @@
 namespace App\Domains\BusinessBrain\RevenueTruth;
 
 use App\Models\AccountingInvoice;
+use App\Models\PaymentAllocation;
 
 class ReceivableRealityService
 {
@@ -21,10 +22,22 @@ class ReceivableRealityService
                 'zero_value',
             ]);
 
+        $today = now()->startOfDay();
+
         $overdue = $recoverableInvoices
             ->filter(
-                fn (AccountingInvoice $invoice) => $invoice->status === 'overdue'
+                fn (AccountingInvoice $invoice) => $invoice->due_date !== null
+                    && $invoice->due_date->startOfDay()->lte($today)
             );
+
+        $confirmedAllocations = PaymentAllocation::query()
+            ->whereIn('status', [
+                'approved',
+                'imported',
+            ]);
+
+        $suggestedAllocations = PaymentAllocation::query()
+            ->where('status', 'suggested');
 
         return new ReceivableReality(
             reportedOutstanding: (float) $recoverableInvoices
@@ -66,7 +79,17 @@ class ReceivableRealityService
 
             draftAmount: (float) $ledgerInvoices
                 ->where('status', 'draft')
-                ->sum('outstanding_amount')
+                ->sum('outstanding_amount'),
+            confirmedPaymentEvidence: round(
+                (float) $confirmedAllocations->sum('amount'),
+                2
+            ),
+            suggestedPaymentEvidence: round(
+                (float) $suggestedAllocations->sum('amount'),
+                2
+            ),
+            confirmedPaymentCount: $confirmedAllocations->count(),
+            suggestedPaymentCount: $suggestedAllocations->count()
         );
     }
 }

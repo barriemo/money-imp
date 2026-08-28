@@ -252,6 +252,8 @@
                     >
                         <option value="vat">VAT</option>
                         <option value="paye">PAYE</option>
+                        <option value="employer_nic">Employer NIC</option>
+                        <option value="payroll">Payroll / wages</option>
                         <option value="corporation_tax">
                             Corporation Tax
                         </option>

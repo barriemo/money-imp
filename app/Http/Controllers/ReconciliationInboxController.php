@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Domains\Accounting\Services\InvoiceBalanceService;
 use App\Domains\Reconciliation\Services\PayerIdentityService;
+use App\Domains\Reconciliation\Services\PaymentAllocationApprovalService;
 use App\Models\AccountingInvoice;
 use App\Models\BankTransaction;
 use App\Models\Client;
-use App\Models\PaymentAllocation;
 use App\Models\PaymentIdentity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -191,7 +190,7 @@ class ReconciliationInboxController extends Controller
     public function allocateInvoice(
         Request $request,
         BankTransaction $transaction,
-        InvoiceBalanceService $balances
+        PaymentAllocationApprovalService $approval
     ): RedirectResponse {
         $validated = $request->validate([
             'invoice_id' => ['required', 'uuid', 'exists:accounting_invoices,id'],
@@ -202,68 +201,16 @@ class ReconciliationInboxController extends Controller
             $validated['invoice_id']
         );
 
-        abort_unless(
-            $transaction->client_id !== null
-            && $invoice->client_id === $transaction->client_id,
-            422,
-            'Invoice does not belong to this client.'
+        $allocation = $approval->approveManual(
+            transaction: $transaction,
+            invoice: $invoice,
+            requestedAmount: (float) $validated['amount'],
+            userId: $request->user()->id,
         );
-
-        $alreadyAllocated = (float) $transaction
-            ->paymentAllocations()
-            ->whereIn('status', ['approved', 'imported'])
-            ->sum('amount');
-
-        $availablePayment = max(
-            0,
-            (float) $transaction->amount - $alreadyAllocated
-        );
-
-        $invoiceOutstanding = (float) $balances->outstanding($invoice);
-
-        $amount = min(
-            (float) $validated['amount'],
-            $availablePayment,
-            $invoiceOutstanding
-        );
-
-        abort_if(
-            $amount <= 0,
-            422,
-            'There is no remaining amount available to allocate.'
-        );
-
-        PaymentAllocation::updateOrCreate(
-            [
-                'bank_transaction_id' => $transaction->id,
-                'accounting_invoice_id' => $invoice->id,
-            ],
-            [
-                'amount' => $amount,
-                'status' => 'approved',
-                'confidence' => 100,
-                'approved_by' => $request->user()->id,
-                'approved_at' => now(),
-                'match_method' => 'manual_reconciliation',
-                'reason' => 'Approved manually in Money Imp reconciliation inbox.',
-            ]
-        );
-
-        $totalAllocated = (float) $transaction
-            ->paymentAllocations()
-            ->whereIn('status', ['approved', 'imported'])
-            ->sum('amount');
-
-        $transaction->update([
-            'match_status' => $totalAllocated + 0.01
-                >= (float) $transaction->amount
-                ? 'reconciled'
-                : 'partially_allocated',
-        ]);
 
         return back()->with(
             'success',
-            '£'.number_format($amount, 2)
+            '£'.number_format((float) $allocation->amount, 2)
                 .' allocated to invoice '
                 .$invoice->invoice_number.'.'
         );
