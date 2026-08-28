@@ -13,6 +13,12 @@ class ReceivableReality
 
         public int $confidence,
 
-        public array $priorityInvoices
+        public array $priorityInvoices,
+
+        public float $ledgerOutstanding = 0,
+
+        public float $writtenOffAmount = 0,
+
+        public float $draftAmount = 0
     ) {}
 }

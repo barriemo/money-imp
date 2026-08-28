@@ -8,38 +8,38 @@ class ReceivableRealityService
 {
     public function current(): ReceivableReality
     {
-        $invoices =
-            AccountingInvoice::query()
-                ->where(
-                    'outstanding_amount',
-                    '>',
-                    0
-                )
-                ->get();
+        $ledgerInvoices = AccountingInvoice::query()
+            ->where('outstanding_amount', '>', 0)
+            ->get();
 
-        $overdue =
-            $invoices
-                ->where(
-                    'status',
-                    'overdue'
-                );
+        $recoverableInvoices = $ledgerInvoices
+            ->whereNotIn('status', [
+                'draft',
+                'written_off',
+                'paid',
+                'refunded',
+                'zero_value',
+            ]);
+
+        $overdue = $recoverableInvoices
+            ->filter(
+                fn (AccountingInvoice $invoice) => $invoice->status === 'overdue'
+            );
 
         return new ReceivableReality(
-            reportedOutstanding: (float) $invoices
+            reportedOutstanding: (float) $recoverableInvoices
                 ->sum('outstanding_amount'),
 
-            invoiceCount: $invoices
+            invoiceCount: $recoverableInvoices
                 ->count(),
 
             overdueInvoiceCount: $overdue
                 ->count(),
 
-            confidence: 0,
+            confidence: 100,
 
-            priorityInvoices: $invoices
-                ->sortByDesc(
-                    'outstanding_amount'
-                )
+            priorityInvoices: $overdue
+                ->sortByDesc('outstanding_amount')
                 ->take(10)
                 ->map(
                     fn (AccountingInvoice $invoice) => [
@@ -47,12 +47,26 @@ class ReceivableRealityService
 
                         'invoice_number' => $invoice->invoice_number,
 
-                        'amount' => (float) $invoice
-                            ->outstanding_amount,
+                        'amount' => (float) $invoice->outstanding_amount,
+
+                        'status' => $invoice->status,
+
+                        'due_date' => $invoice->due_date?->toDateString(),
                     ]
                 )
                 ->values()
-                ->toArray()
+                ->toArray(),
+
+            ledgerOutstanding: (float) $ledgerInvoices
+                ->sum('outstanding_amount'),
+
+            writtenOffAmount: (float) $ledgerInvoices
+                ->where('status', 'written_off')
+                ->sum('outstanding_amount'),
+
+            draftAmount: (float) $ledgerInvoices
+                ->where('status', 'draft')
+                ->sum('outstanding_amount')
         );
     }
 }

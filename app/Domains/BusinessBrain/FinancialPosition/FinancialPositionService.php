@@ -73,6 +73,16 @@ class FinancialPositionService
                     'liabilities'
                 ]['paye'],
 
+                employerNic: (float) (
+                    $financial['liabilities']['employer_nic']
+                    ?? 0
+                ),
+
+                payroll: (float) (
+                    $financial['liabilities']['payroll']
+                    ?? 0
+                ),
+
                 other: (float) $financial[
                     'liabilities'
                 ]['other'],

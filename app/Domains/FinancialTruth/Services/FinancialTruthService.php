@@ -205,6 +205,30 @@ class FinancialTruthService
                         )
                         ->sum('amount'),
 
+                'employer_nic' => (float)
+                    $verifiedLiabilities
+                        ->whereIn(
+                            'type',
+                            [
+                                'employer_nic',
+                                'employer_national_insurance',
+                                'nic',
+                            ]
+                        )
+                        ->sum('amount'),
+
+                'payroll' => (float)
+                    $verifiedLiabilities
+                        ->whereIn(
+                            'type',
+                            [
+                                'payroll',
+                                'wages',
+                                'salary',
+                            ]
+                        )
+                        ->sum('amount'),
+
                 'other' => (float)
                     $verifiedLiabilities
                         ->whereNotIn(
@@ -212,6 +236,12 @@ class FinancialTruthService
                             [
                                 'vat',
                                 'paye',
+                                'employer_nic',
+                                'employer_national_insurance',
+                                'nic',
+                                'payroll',
+                                'wages',
+                                'salary',
                             ]
                         )
                         ->sum('amount'),
