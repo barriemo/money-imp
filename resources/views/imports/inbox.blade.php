@@ -348,6 +348,28 @@
                 </div>
             </div>
 
+            @if ($batch->source_type === 'supplier_invoice'
+                && $batch->status !== 'completed')
+                <form
+                    method="POST"
+                    action="{{ route(
+                        'imports.process-supplier-invoice',
+                        $batch
+                    ) }}"
+                    style="margin-top: 18px;"
+                >
+                    @csrf
+
+                    <button
+                        type="submit"
+                        class="button"
+                        style="border: 0; cursor: pointer;"
+                    >
+                        Process Supplier Invoice
+                    </button>
+                </form>
+            @endif
+
             <div class="metrics">
                 <span>
                     Seen: {{ $batch->rows_seen }}
