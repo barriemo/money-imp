@@ -60,4 +60,11 @@ class Project extends Model
             ProjectAction::class
         );
     }
+
+    public function costAllocations(): HasMany
+    {
+        return $this->hasMany(
+            CostAllocation::class
+        );
+    }
 }

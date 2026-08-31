@@ -27,6 +27,11 @@ class CostAllocation extends MoneyImpModel
         return $this->belongsTo(Client::class);
     }
 
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
+    }
+
     public function service(): BelongsTo
     {
         return $this->belongsTo(ClientService::class, 'client_service_id');

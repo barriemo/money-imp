@@ -2,33 +2,31 @@
 
 namespace App\Domains\Suppliers\Documents;
 
-use App\Domains\Suppliers\Documents\Parsers\EukhostInvoiceParser;
-use App\Domains\Suppliers\Documents\Parsers\SupplierDocumentParser;
-use App\Domains\Suppliers\Documents\Parsers\TwentyIInvoiceParser;
 use App\Models\ImportBatch;
 use App\Models\SupplierAsset;
 use App\Models\SupplierProfile;
-use Illuminate\Support\Facades\Storage;
 use RuntimeException;
-use Smalot\PdfParser\Parser;
 
 class SupplierDocumentAssetExtractor
 {
-    /**
-     * @var array<int, SupplierDocumentParser>
-     */
-    private array $parsers;
-
-    public function __construct()
-    {
-        $this->parsers = [
-            new TwentyIInvoiceParser,
-            new EukhostInvoiceParser,
-        ];
-    }
+    public function __construct(
+        private readonly Services\SupplierDocumentDetectionService $documents,
+    ) {}
 
     public function extract(
         ImportBatch $batch
+    ): int {
+        $detected = $this->documents->detect($batch);
+
+        return $this->extractDetected(
+            $batch,
+            $detected
+        );
+    }
+
+    public function extractDetected(
+        ImportBatch $batch,
+        array $detected
     ): int {
         $supplierName =
             $batch->metadata['supplier']
@@ -56,46 +54,17 @@ class SupplierDocumentAssetExtractor
             );
         }
 
-        $parser = collect($this->parsers)
-            ->first(
-                fn (SupplierDocumentParser $parser) => $parser->supports(
-                    $supplierName
-                )
-            );
-
-        if (! $parser) {
-            throw new RuntimeException(
-                'No document parser for '
-                .$supplierName
-            );
-        }
-
-        $path = Storage::path(
-            $batch->storage_path
-        );
-
-        $text = (new Parser)
-            ->parseFile($path)
-            ->getText();
-
-        $detected = $parser->parse($text);
-
         foreach ($detected as $item) {
             $asset = SupplierAsset::firstOrCreate(
                 [
                     'supplier_profile_id' => $supplier->id,
-
                     'asset_type' => $item['type'],
-
                     'asset_key' => $item['key'],
                 ],
                 [
                     'name' => $item['name'],
-
                     'confidence' => $item['confidence'],
-
                     'active' => true,
-
                     'first_seen_at' => $batch->created_at
                         ?->toDateString(),
                 ]
@@ -121,12 +90,10 @@ class SupplierDocumentAssetExtractor
             $updates = [
                 'last_seen_at' => $batch->created_at
                     ?->toDateString(),
-
                 'confidence' => max(
                     $asset->confidence,
                     $item['confidence']
                 ),
-
                 'metadata' => [
                     ...$metadata,
                     'source_documents' => $documents,

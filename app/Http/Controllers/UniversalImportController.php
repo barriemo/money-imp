@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Domains\Imports\Services\PendingStatementImportService;
 use App\Domains\Imports\Services\UniversalImportService;
+use App\Domains\Suppliers\Documents\Actions\ProcessSupplierInvoice;
+use App\Models\ImportBatch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -68,6 +70,28 @@ class UniversalImportController extends Controller
                 .$unknown
                 .' need review.'
             );
+    }
+
+    public function processSupplierInvoice(
+        Request $request,
+        ImportBatch $batch,
+        ProcessSupplierInvoice $processor
+    ): RedirectResponse {
+        try {
+            $bill = $processor->execute($batch);
+
+            return redirect()
+                ->route('imports.index')
+                ->with(
+                    'success',
+                    'Supplier invoice processed into accounting bill '
+                    .$bill->id.'.'
+                );
+        } catch (\RuntimeException $exception) {
+            return redirect()
+                ->route('imports.index')
+                ->withErrors($exception->getMessage());
+        }
     }
 
     public function processStatements(
