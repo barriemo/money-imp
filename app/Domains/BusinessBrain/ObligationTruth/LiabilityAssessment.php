@@ -16,6 +16,8 @@ class LiabilityAssessment
         public readonly array $unknownCategories,
         public readonly array $currentItems,
         public readonly array $settlementEvidence,
+
+        public readonly array $reconciliation = [],
     ) {}
 
     public function toArray(): array
@@ -41,6 +43,8 @@ class LiabilityAssessment
 
             'current_items' => $this->currentItems,
             'settlement_evidence' => $this->settlementEvidence,
+
+            'reconciliation' => $this->reconciliation,
         ];
     }
 }

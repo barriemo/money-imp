@@ -158,6 +158,12 @@ class FinancialPositionService
                     $liabilityAssessment[
                         'current_items'
                     ] ?? []
+                ),
+
+                reconciliation: (
+                    $liabilityAssessment[
+                        'reconciliation'
+                    ] ?? []
                 )
             );
 

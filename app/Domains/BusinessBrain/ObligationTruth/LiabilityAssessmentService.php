@@ -13,7 +13,9 @@ class LiabilityAssessmentService
     public function __construct(
         private BankEvidenceCoverageService $bankEvidenceCoverage,
 
-        private StatutorySettlementEvidenceProvider $settlementEvidence
+        private StatutorySettlementEvidenceProvider $settlementEvidence,
+
+        private ObligationReconciliationService $reconciliation
     ) {}
 
     public function current(): LiabilityAssessment
@@ -122,7 +124,7 @@ class LiabilityAssessmentService
             ->values()
             ->all();
 
-        return new LiabilityAssessment(
+        $assessment = new LiabilityAssessment(
             reportedTotal: (float) $reported->sum('amount'),
 
             currentReportedExposure: (float) $overdue->sum('amount')
@@ -151,6 +153,38 @@ class LiabilityAssessmentService
             settlementEvidence: $this->settlementEvidence
                 ->assess()
                 ->toArray(),
+        );
+
+        $settlementEvidence = new StatutorySettlementEvidence(
+            categories: $assessment->settlementEvidence['categories'] ?? [],
+            totalObservedAmount: (float) (
+                $assessment->settlementEvidence['total_observed_amount'] ?? 0
+            ),
+            paymentEvidenceExists: (bool) (
+                $assessment->settlementEvidence['payment_evidence_exists'] ?? false
+            ),
+        );
+
+        $reconciliation = $this->reconciliation
+            ->reconcile(
+                $assessment,
+                $settlementEvidence
+            )
+            ->toArray();
+
+        return new LiabilityAssessment(
+            reportedTotal: $assessment->reportedTotal,
+            currentReportedExposure: $assessment->currentReportedExposure,
+            reportedOverdue: $assessment->reportedOverdue,
+            reportedUpcoming: $assessment->reportedUpcoming,
+            historicalReportedUnresolved: $assessment->historicalReportedUnresolved,
+            settlementUnresolved: $assessment->settlementUnresolved,
+            bankTransactionEvidenceCurrent: $assessment->bankTransactionEvidenceCurrent,
+            canInferPaymentAbsence: $assessment->canInferPaymentAbsence,
+            unknownCategories: $assessment->unknownCategories,
+            currentItems: $assessment->currentItems,
+            settlementEvidence: $assessment->settlementEvidence,
+            reconciliation: $reconciliation,
         );
     }
 

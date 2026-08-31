@@ -22,6 +22,8 @@ class LiabilityPosition
         public bool $bankTransactionEvidenceCurrent = false,
         public bool $canInferPaymentAbsence = false,
         public array $unknownCategories = [],
-        public array $reportedItems = []
+        public array $reportedItems = [],
+
+        public array $reconciliation = []
     ) {}
 }
