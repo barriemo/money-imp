@@ -59,6 +59,11 @@ class FinancialPositionService
                 'confidence'
             ]['liabilities'];
 
+        $liabilityAssessment =
+            $financial['liabilities'][
+                'assessment'
+            ] ?? [];
+
         $liabilities =
             new LiabilityPosition(
                 known: (float) $financial[
@@ -93,7 +98,67 @@ class FinancialPositionService
                  * Zero liabilities with zero confidence
                  * means "we do not know", not "nothing owed".
                  */
-                coverageComplete: $liabilityConfidence === 100
+                coverageComplete: $liabilityConfidence === 100,
+
+                reported: (float) (
+                    $liabilityAssessment[
+                        'reported_total'
+                    ] ?? 0
+                ),
+
+                currentReportedExposure: (float) (
+                    $liabilityAssessment[
+                        'current_reported_exposure'
+                    ] ?? 0
+                ),
+
+                reportedOverdue: (float) (
+                    $liabilityAssessment[
+                        'reported_overdue'
+                    ] ?? 0
+                ),
+
+                reportedUpcoming: (float) (
+                    $liabilityAssessment[
+                        'reported_upcoming'
+                    ] ?? 0
+                ),
+
+                historicalReportedUnresolved: (float) (
+                    $liabilityAssessment[
+                        'historical_reported_unresolved'
+                    ] ?? 0
+                ),
+
+                settlementUnresolved: (float) (
+                    $liabilityAssessment[
+                        'settlement_unresolved'
+                    ] ?? 0
+                ),
+
+                bankTransactionEvidenceCurrent: (bool) (
+                    $liabilityAssessment[
+                        'bank_transaction_evidence_current'
+                    ] ?? false
+                ),
+
+                canInferPaymentAbsence: (bool) (
+                    $liabilityAssessment[
+                        'can_infer_payment_absence'
+                    ] ?? false
+                ),
+
+                unknownCategories: (
+                    $liabilityAssessment[
+                        'unknown_categories'
+                    ] ?? []
+                ),
+
+                reportedItems: (
+                    $liabilityAssessment[
+                        'current_items'
+                    ] ?? []
+                )
             );
 
         return new FinancialPosition(

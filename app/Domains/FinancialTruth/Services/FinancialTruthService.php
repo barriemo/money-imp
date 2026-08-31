@@ -2,6 +2,7 @@
 
 namespace App\Domains\FinancialTruth\Services;
 
+use App\Domains\BusinessBrain\ObligationTruth\LiabilityAssessmentService;
 use App\Models\AccountBalanceSnapshot;
 use App\Models\AccountingInvoice;
 use App\Models\BankAccount;
@@ -10,6 +11,10 @@ use App\Models\PaymentAllocation;
 
 class FinancialTruthService
 {
+    public function __construct(
+        private LiabilityAssessmentService $liabilityAssessment
+    ) {}
+
     public function build(): array
     {
         $accounts = BankAccount::query()
@@ -107,6 +112,10 @@ class FinancialTruthService
 
         $verifiedLiabilities = $liabilities
             ->where('verified', true);
+
+        $liabilityAssessment =
+            $this->liabilityAssessment
+                ->current();
 
         /*
          * Do not call stale invoice ledger values
@@ -245,6 +254,9 @@ class FinancialTruthService
                             ]
                         )
                         ->sum('amount'),
+
+                'assessment' => $liabilityAssessment
+                    ->toArray(),
 
                 'coverage' => [
                     'record_count' => $liabilities->count(),

@@ -37,7 +37,8 @@ class CfoBriefPresenter
             sprintf(
                 '- Ledger receivables: £%s',
                 number_format(
-                    $position->receivables->ledgerOutstanding,
+                    $position->receivables
+                        ->ledgerOutstanding,
                     2
                 )
             ),
@@ -48,28 +49,134 @@ class CfoBriefPresenter
                     2
                 )
             ),
+        ];
+
+        if (
+            $position->liabilities
+                ->currentReportedExposure > 0
+        ) {
+            $lines[] =
+                sprintf(
+                    '- Reported current liability exposure: £%s',
+                    number_format(
+                        $position->liabilities
+                            ->currentReportedExposure,
+                        2
+                    )
+                );
+        }
+
+        if (
+            $position->liabilities
+                ->reportedOverdue > 0
+        ) {
+            $lines[] =
+                sprintf(
+                    '- Reported overdue, settlement unresolved: £%s',
+                    number_format(
+                        $position->liabilities
+                            ->reportedOverdue,
+                        2
+                    )
+                );
+        }
+
+        if (
+            $position->liabilities
+                ->reportedUpcoming > 0
+        ) {
+            $lines[] =
+                sprintf(
+                    '- Reported upcoming liabilities: £%s',
+                    number_format(
+                        $position->liabilities
+                            ->reportedUpcoming,
+                        2
+                    )
+                );
+        }
+
+        foreach (
+            $position->liabilities->reportedItems as $item
+        ) {
+            $label = match (
+                $item['type'] ?? null
+            ) {
+                'vat' => 'VAT',
+                'paye' => 'PAYE',
+                'corporation_tax' => 'Corporation tax',
+                default => ucfirst(
+                    str_replace(
+                        '_',
+                        ' ',
+                        (string) (
+                            $item['type']
+                            ?? 'liability'
+                        )
+                    )
+                ),
+            };
+
+            $state = match (
+                $item['assessment'] ?? null
+            ) {
+                'reported_overdue' => 'reported overdue',
+
+                'reported_upcoming' => 'reported upcoming',
+
+                default => 'reported',
+            };
+
+            $lines[] =
+                sprintf(
+                    '- %s %s: £%s due %s',
+                    $label,
+                    $state,
+                    number_format(
+                        (float) (
+                            $item['amount']
+                            ?? 0
+                        ),
+                        2
+                    ),
+                    $item['due_date']
+                        ?? 'unknown'
+                );
+        }
+
+        $lines[] =
             sprintf(
                 '- Verified credit exposure: £%s',
                 number_format(
-                    $position->credit->verifiedExposure,
+                    $position->credit
+                        ->verifiedExposure,
                     2
                 )
-            ),
-            '',
-            'Business Brain:',
+            );
+
+        $lines[] = '';
+        $lines[] = 'Business Brain:';
+
+        $lines[] =
             sprintf(
                 '- Active investigations: %d',
-                $brief->businessBrain->activeInvestigationCount
-            ),
+                $brief->businessBrain
+                    ->activeInvestigationCount
+            );
+
+        $lines[] =
             sprintf(
                 '- Waiting investigations: %d',
-                $brief->businessBrain->waitingInvestigationCount
-            ),
+                $brief->businessBrain
+                    ->waitingInvestigationCount
+            );
+
+        $lines[] =
             sprintf(
                 '- Investigation candidates: %d',
-                $brief->businessBrain->candidateCount
-            ),
-        ];
+                $brief->businessBrain
+                    ->candidateCount
+            );
 
         $this->appendSection(
             $lines,
@@ -91,13 +198,20 @@ class CfoBriefPresenter
 
         if ($brief->bestNextVerification) {
             $lines[] = '';
-            $lines[] = 'Best next evidence action:';
+            $lines[] =
+                'Best next evidence action:';
+
             $lines[] =
                 sprintf(
                     '- %s (£%s)',
-                    $brief->bestNextVerification->subject,
+                    $brief
+                        ->bestNextVerification
+                        ->subject,
+
                     number_format(
-                        $brief->bestNextVerification->amount
+                        $brief
+                            ->bestNextVerification
+                            ->amount
                             ?? 0,
                         2
                     )
@@ -105,7 +219,8 @@ class CfoBriefPresenter
 
             $lines[] =
                 '- '
-                .$brief->bestNextVerification
+                .$brief
+                    ->bestNextVerification
                     ->recommendedAction;
         }
 

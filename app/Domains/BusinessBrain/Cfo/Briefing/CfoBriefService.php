@@ -125,6 +125,17 @@ class CfoBriefService implements ExecutiveBriefService
     ): array {
         $risks = [];
 
+        if ($position->liabilities->reportedOverdue > 0) {
+            $risks[] =
+                sprintf(
+                    'Source evidence reports £%s of current overdue liabilities whose settlement is not yet established.',
+                    number_format(
+                        $position->liabilities->reportedOverdue,
+                        2
+                    )
+                );
+        }
+
         if ($position->receivables->ledgerOutstanding > 0) {
             $risks[] =
                 sprintf(
@@ -166,6 +177,64 @@ class CfoBriefService implements ExecutiveBriefService
     ): array {
         $unknowns = [];
 
+        if ($position->liabilities->settlementUnresolved > 0) {
+            if (! $position->liabilities->canInferPaymentAbsence) {
+                $unknowns[] =
+                    sprintf(
+                        'Settlement of £%s of reported overdue liabilities is unresolved because bank transaction evidence is not current enough to infer absence of payment.',
+                        number_format(
+                            $position->liabilities->settlementUnresolved,
+                            2
+                        )
+                    );
+            } else {
+                $unknowns[] =
+                    sprintf(
+                        'Settlement of £%s of reported overdue liabilities remains unresolved pending payment-to-obligation reconciliation.',
+                        number_format(
+                            $position->liabilities->settlementUnresolved,
+                            2
+                        )
+                    );
+            }
+        }
+
+        if (
+            $position->liabilities
+                ->historicalReportedUnresolved > 0
+        ) {
+            $unknowns[] =
+                sprintf(
+                    '£%s of older reported liability evidence remains historically unresolved and is excluded from current reported exposure.',
+                    number_format(
+                        $position->liabilities
+                            ->historicalReportedUnresolved,
+                        2
+                    )
+                );
+        }
+
+        foreach (
+            $position->liabilities->unknownCategories as $category
+        ) {
+            $label = match ($category) {
+                'vat' => 'VAT',
+                'paye' => 'PAYE',
+                'corporation_tax' => 'Corporation tax',
+                default => ucfirst(
+                    str_replace(
+                        '_',
+                        ' ',
+                        $category
+                    )
+                ),
+            };
+
+            $unknowns[] =
+                $label
+                .' liability evidence is currently insufficient.';
+        }
+
         if (! $position->liabilities->coverageComplete) {
             $unknowns[] =
                 'Liability coverage is incomplete. Known liabilities must not be treated as total liabilities.';
@@ -189,6 +258,23 @@ class CfoBriefService implements ExecutiveBriefService
         $brain
     ): array {
         $priorities = [];
+
+        if (
+            $position->liabilities->reportedOverdue > 0
+            && ! $position->liabilities
+                ->bankTransactionEvidenceCurrent
+        ) {
+            $priorities[] =
+                'Refresh bank transaction evidence before deciding whether reported overdue statutory liabilities remain unpaid.';
+        }
+
+        if (
+            $position->liabilities
+                ->unknownCategories !== []
+        ) {
+            $priorities[] =
+                'Establish missing statutory liability evidence for PAYE and corporation tax.';
+        }
 
         if (! $position->liabilities->coverageComplete) {
             $priorities[] =
@@ -240,6 +326,11 @@ class CfoBriefService implements ExecutiveBriefService
         FinancialPosition $position
     ): array {
         $questions = [];
+
+        if ($position->liabilities->reportedOverdue > 0) {
+            $questions[] =
+                'Which reported overdue statutory liabilities have actually been settled?';
+        }
 
         if (! $position->liabilities->coverageComplete) {
             $questions[] =
