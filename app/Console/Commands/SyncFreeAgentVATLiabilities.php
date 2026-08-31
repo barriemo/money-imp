@@ -11,7 +11,7 @@ class SyncFreeAgentVATLiabilities extends Command
     protected $signature = 'money-imp:sync-freeagent-vat';
 
     protected $description =
-        'Sync verified VAT liabilities from FreeAgent';
+        'Sync reported VAT liability evidence from FreeAgent';
 
     public function handle(
         FreeAgentVATLiabilitySyncService $sync
@@ -30,7 +30,7 @@ class SyncFreeAgentVATLiabilities extends Command
         }
 
         $this->info(
-            'Syncing FreeAgent VAT liabilities...'
+            'Syncing FreeAgent VAT liability evidence...'
         );
 
         $result = $sync->sync($connection);
@@ -40,8 +40,8 @@ class SyncFreeAgentVATLiabilities extends Command
             [
                 ['VAT returns', $result['returns']],
                 ['Payments seen', $result['payments_seen']],
-                ['Open liabilities', $result['open']],
-                ['Closed liabilities', $result['closed']],
+                ['Reported open', $result['open']],
+                ['Reported closed', $result['closed']],
                 ['Ignored', $result['ignored']],
             ]
         );

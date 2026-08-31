@@ -82,8 +82,15 @@ class FreeAgentVATLiabilitySyncService
                             ? 'open'
                             : 'closed',
                         'source' => 'freeagent_vat_return',
-                        'verified' => true,
-                        'confidence' => 100,
+                        /*
+                         * FreeAgent confirms that the accounting
+                         * system reports this VAT obligation.
+                         *
+                         * It does not independently prove that the
+                         * obligation remains unpaid today.
+                         */
+                        'verified' => false,
+                        'confidence' => 90,
                         'notes' => $payment['label'] ?? null,
                         'metadata' => [
                             'period_starts_on' => $vatReturn['period_starts_on'] ?? null,
@@ -92,6 +99,15 @@ class FreeAgentVATLiabilitySyncService
 
                             'payment_status' => $payment['status'] ?? null,
 
+                            'filing_status' => $vatReturn['filing_status'] ?? null,
+
+                            'reported_by_freeagent' => true,
+
+                            'source_confidence' => 90,
+
+                            'settlement_verified' => false,
+
+                            'settlement_confidence' => 0,
                             'freeagent_url' => $vatReturn['url'] ?? null,
 
                             'source' => 'freeagent_vat_return',
