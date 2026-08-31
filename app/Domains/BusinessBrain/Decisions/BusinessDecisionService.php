@@ -27,10 +27,16 @@ class BusinessDecisionService
                     )
                 );
 
-        $commercialDecisions =
+        $summary =
             $this->revenueTruth
-                ->current()
+                ->current();
+
+        $commercialDecisions =
+            $summary
                 ->gaps
+                ->filter(
+                    fn (CommercialGap $gap) => $gap->type !== 'outstanding_revenue'
+                )
                 ->map(
                     fn (CommercialGap $gap) => $this->decisionForCommercialGap(
                         $gap
@@ -38,12 +44,41 @@ class BusinessDecisionService
                 )
                 ->filter();
 
-        return $attentionDecisions
-            ->merge(
-                $commercialDecisions
-            )
+        $decisions =
+            $attentionDecisions
+                ->merge($commercialDecisions);
+
+        if ($summary->outstanding > 0) {
+            $decisions->push(
+                new BusinessDecision(
+                    type: 'collections',
+                    clientId: null,
+                    client: null,
+                    action: 'Review and chase overdue balances.',
+                    reason: sprintf(
+                        '£%s is outstanding across %d clients.',
+                        number_format(
+                            $summary->outstanding,
+                            2
+                        ),
+                        $summary->clientsWithOutstandingRevenue
+                    ),
+                    priority: min(
+                        100,
+                        75 + (int) min(
+                            25,
+                            $summary->outstanding / 5000
+                        )
+                    ),
+                    value: $summary->outstanding,
+                    confidence: $summary->averageCommercialConfidence
+                )
+            );
+        }
+
+        return $decisions
             ->unique(
-                fn (BusinessDecision $decision) => $decision->clientId
+                fn (BusinessDecision $decision) => ($decision->clientId ?? 'business')
                     .':'
                     .$decision->type
             )

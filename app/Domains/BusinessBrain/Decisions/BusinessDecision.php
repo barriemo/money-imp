@@ -7,9 +7,9 @@ class BusinessDecision
     public function __construct(
         public string $type,
 
-        public string $clientId,
+        public ?string $clientId,
 
-        public string $client,
+        public ?string $client,
 
         public string $action,
 

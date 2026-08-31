@@ -15,6 +15,8 @@ class ExecutiveActionService
 
         private ExecutiveActionFactory $factory,
 
+        private ExecutiveActionPromotionPolicy $promotion,
+
         private BusinessMemoryEventService $memory
     ) {}
 
@@ -24,6 +26,12 @@ class ExecutiveActionService
         return $this->reasoning
             ->opportunities(
                 $limit
+            )
+            ->filter(
+                fn (ExecutiveReasoning $reasoning) => $this->promotion
+                    ->shouldPromote(
+                        $reasoning
+                    )
             )
             ->map(
                 fn (ExecutiveReasoning $reasoning) => $this->factory
@@ -41,6 +49,30 @@ class ExecutiveActionService
                 'status',
                 'pending'
             )
+            ->whereNull(
+                'capability_definition_id'
+            )
+            ->where(function ($query) {
+                $query
+                    ->where(
+                        'type',
+                        'cash_management'
+                    )
+                    ->orWhere(
+                        'type',
+                        'client_advocacy'
+                    )
+                    ->orWhere(function ($query) {
+                        $query
+                            ->where(
+                                'type',
+                                'financial_opportunity'
+                            )
+                            ->whereNotNull(
+                                'client_id'
+                            );
+                    });
+            })
             ->orderByDesc(
                 'score'
             )
@@ -61,6 +93,22 @@ class ExecutiveActionService
                 'status',
                 $status
             )
+            ->where(function ($query) {
+                $query
+                    ->whereNotNull('capability_definition_id')
+                    ->orWhere(function ($query) {
+                        $query
+                            ->whereIn('type', [
+                                'cash_management',
+                                'client_advocacy',
+                            ]);
+                    })
+                    ->orWhere(function ($query) {
+                        $query
+                            ->where('type', 'financial_opportunity')
+                            ->whereNotNull('client_id');
+                    });
+            })
             ->orderByDesc(
                 'score'
             )

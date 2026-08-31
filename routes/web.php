@@ -5,6 +5,7 @@ use App\Http\Controllers\BillingReviewController;
 use App\Http\Controllers\ChaseQueueController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DebtorController;
+use App\Http\Controllers\ExecutiveActionController;
 use App\Http\Controllers\FinancialTruthController;
 use App\Http\Controllers\ImportInboxController;
 use App\Http\Controllers\Integrations\FreeAgentController;
@@ -19,6 +20,18 @@ use App\Http\Controllers\UniversalImportController;
 use App\Http\Controllers\WorkLogController;
 use App\Http\Controllers\WorkReviewController;
 use Illuminate\Support\Facades\Route;
+
+Route::middleware('auth')->group(function (): void {
+    Route::get(
+        '/executive-actions',
+        [ExecutiveActionController::class, 'index']
+    )->name('executive-actions.index');
+
+    Route::get(
+        '/executive-actions/{action}',
+        [ExecutiveActionController::class, 'show']
+    )->name('executive-actions.show');
+});
 
 Route::middleware('auth')->get(
     '/dashboard',
@@ -206,6 +219,14 @@ Route::middleware('auth')->post(
         'processStatements',
     ]
 )->name('imports.process-statements');
+
+Route::middleware('auth')->post(
+    '/imports/{batch}/process-supplier-invoice',
+    [
+        UniversalImportController::class,
+        'processSupplierInvoice',
+    ]
+)->name('imports.process-supplier-invoice');
 
 Route::middleware('auth')->get(
     '/financial-truth',
