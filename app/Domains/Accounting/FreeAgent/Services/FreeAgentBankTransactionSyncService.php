@@ -185,9 +185,6 @@ class FreeAgentBankTransactionSyncService
             'transaction_type' => ! empty($source['is_manual'])
                 ? 'manual'
                 : 'imported',
-            'match_status' => abs($unexplainedAmount) > 0.00001
-                ? 'unmatched'
-                : 'reconciled',
             'source_type' => 'freeagent',
             'transaction_hash' => $transactionHash,
             'raw_payload' => $source,
@@ -217,7 +214,14 @@ class FreeAgentBankTransactionSyncService
 
                 $run->increment('records_updated');
             } else {
-                $transaction = BankTransaction::create($attributes);
+                $transaction = BankTransaction::create(
+                    array_merge(
+                        $attributes,
+                        [
+                            'match_status' => 'unmatched',
+                        ]
+                    )
+                );
 
                 $run->increment('records_created');
             }

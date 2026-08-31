@@ -30,4 +30,12 @@ class AccountingBill extends MoneyImpModel
     {
         return $this->hasMany(AccountingBillItem::class);
     }
+
+    public function paymentAllocations(): HasMany
+    {
+        return $this->hasMany(
+            SupplierPaymentAllocation::class,
+            'accounting_bill_id'
+        );
+    }
 }

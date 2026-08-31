@@ -13,6 +13,7 @@ use App\Http\Controllers\MoneyOutController;
 use App\Http\Controllers\MoneyOutImportController;
 use App\Http\Controllers\ReconciliationInboxController;
 use App\Http\Controllers\SupplierAssetController;
+use App\Http\Controllers\SupplierPaymentReconciliationController;
 use App\Http\Controllers\SupplierAttributionRuleController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierTransactionController;
@@ -227,6 +228,28 @@ Route::middleware('auth')->post(
         'processSupplierInvoice',
     ]
 )->name('imports.process-supplier-invoice');
+
+Route::middleware('auth')->group(function (): void {
+    Route::get(
+        '/supplier-payments',
+        [SupplierPaymentReconciliationController::class, 'index']
+    )->name('supplier-payments.index');
+
+    Route::post(
+        '/supplier-payments/generate',
+        [SupplierPaymentReconciliationController::class, 'generate']
+    )->name('supplier-payments.generate');
+
+    Route::post(
+        '/supplier-payments/{allocation}/approve',
+        [SupplierPaymentReconciliationController::class, 'approve']
+    )->name('supplier-payments.approve');
+
+    Route::post(
+        '/supplier-payments/{allocation}/reject',
+        [SupplierPaymentReconciliationController::class, 'reject']
+    )->name('supplier-payments.reject');
+});
 
 Route::middleware('auth')->get(
     '/financial-truth',

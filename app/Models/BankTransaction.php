@@ -40,6 +40,11 @@ class BankTransaction extends MoneyImpModel
         return $this->hasMany(PaymentAllocation::class);
     }
 
+    public function supplierPaymentAllocations(): HasMany
+    {
+        return $this->hasMany(SupplierPaymentAllocation::class);
+    }
+
     public function matchedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'matched_by');
