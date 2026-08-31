@@ -11,7 +11,9 @@ use Illuminate\Support\Collection;
 class LiabilityAssessmentService
 {
     public function __construct(
-        private BankEvidenceCoverageService $bankEvidenceCoverage
+        private BankEvidenceCoverageService $bankEvidenceCoverage,
+
+        private StatutorySettlementEvidenceProvider $settlementEvidence
     ) {}
 
     public function current(): LiabilityAssessment
@@ -145,6 +147,10 @@ class LiabilityAssessmentService
             ),
 
             currentItems: $currentItems,
+
+            settlementEvidence: $this->settlementEvidence
+                ->assess()
+                ->toArray(),
         );
     }
 

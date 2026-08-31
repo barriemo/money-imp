@@ -15,6 +15,7 @@ class LiabilityAssessment
         public readonly bool $canInferPaymentAbsence,
         public readonly array $unknownCategories,
         public readonly array $currentItems,
+        public readonly array $settlementEvidence,
     ) {}
 
     public function toArray(): array
@@ -39,6 +40,7 @@ class LiabilityAssessment
             'unknown_categories' => $this->unknownCategories,
 
             'current_items' => $this->currentItems,
+            'settlement_evidence' => $this->settlementEvidence,
         ];
     }
 }

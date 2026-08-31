@@ -5,7 +5,7 @@ namespace App\Domains\BusinessBrain\ObligationTruth;
 use App\Domains\Accounting\FreeAgent\Services\FreeAgentClient;
 use App\Models\ExternalConnection;
 
-final class StatutorySettlementEvidenceService
+final class StatutorySettlementEvidenceService implements StatutorySettlementEvidenceProvider
 {
     private const CATEGORY_MAP = [
         '817' => 'vat',

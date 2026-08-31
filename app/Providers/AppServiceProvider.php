@@ -22,6 +22,10 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->bind(
+            \App\Domains\BusinessBrain\ObligationTruth\StatutorySettlementEvidenceProvider::class,
+            \App\Domains\BusinessBrain\ObligationTruth\StatutorySettlementEvidenceService::class
+        );
         $this->app->singleton(
             ResourceContributionRepository::class,
             function () {

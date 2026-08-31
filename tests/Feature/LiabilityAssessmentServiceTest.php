@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Domains\BusinessBrain\BankTruth\BankEvidenceCoverage;
 use App\Domains\BusinessBrain\ObligationTruth\LiabilityAssessmentService;
+use App\Domains\BusinessBrain\ObligationTruth\StatutorySettlementEvidence;
+use App\Domains\BusinessBrain\ObligationTruth\StatutorySettlementEvidenceProvider;
 use App\Models\Liability;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
@@ -11,6 +13,23 @@ use Tests\TestCase;
 
 class LiabilityAssessmentServiceTest extends TestCase
 {
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->mock(StatutorySettlementEvidenceProvider::class, function ($mock) {
+            $mock->shouldReceive('assess')
+                ->andReturn(
+                    new StatutorySettlementEvidence(
+                        categories: [],
+                        totalObservedAmount: 0,
+                        paymentEvidenceExists: false,
+                    )
+                );
+        });
+    }
+
     public function test_current_exposure_does_not_sum_all_historical_source_reports(): void
     {
         $liabilities = collect([
