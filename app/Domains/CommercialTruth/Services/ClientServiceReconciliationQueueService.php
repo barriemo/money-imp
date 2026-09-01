@@ -3,6 +3,7 @@
 namespace App\Domains\CommercialTruth\Services;
 
 use App\Domains\CommercialTruth\DTO\ClientServiceCandidateAssessment;
+use App\Models\AccountingInvoiceItem;
 use App\Models\ClientServiceReconciliation;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -34,11 +35,41 @@ final class ClientServiceReconciliationQueueService
             ->filter(
                 fn (
                     ClientServiceCandidateAssessment $assessment
+                ) => ! $this->hasCanonicalAttribution(
+                    $assessment
+                )
+            )
+            ->filter(
+                fn (
+                    ClientServiceCandidateAssessment $assessment
                 ) => ! $this->resolved(
                     $assessment
                 )
             )
             ->values();
+    }
+
+    private function hasCanonicalAttribution(
+        ClientServiceCandidateAssessment $assessment
+    ): bool {
+        $invoiceItemIds =
+            $assessment
+                ->candidate
+                ->invoiceItemIds;
+
+        if ($invoiceItemIds === []) {
+            return false;
+        }
+
+        return AccountingInvoiceItem::query()
+            ->whereIn(
+                'id',
+                $invoiceItemIds
+            )
+            ->whereNotNull(
+                'client_service_id'
+            )
+            ->exists();
     }
 
     private function resolved(
