@@ -11,6 +11,7 @@ final class CurrentCommercialPositionService
 {
     public function __construct(
         private readonly ClientServiceCandidateAssessmentService $assessments,
+        private readonly ClientServiceReconciliationQueueService $reviewQueue,
     ) {}
 
     public function position(
@@ -86,11 +87,8 @@ final class CurrentCommercialPositionService
                 $historical
             ),
 
-            readyForReviewCount: $services
-                ->where(
-                    'promotionReadiness',
-                    'ready_for_review'
-                )
+            readyForReviewCount: $this->reviewQueue
+                ->ready($asOf)
                 ->count(),
 
             needsMoreEvidenceCount: $services
@@ -200,28 +198,28 @@ final class CurrentCommercialPositionService
                     string $serviceType
                 ): array {
                     return [
-                    'service_type' => $serviceType,
+                        'service_type' => $serviceType,
 
-                    'candidate_count' => $rows->count(),
+                        'candidate_count' => $rows->count(),
 
-                    'client_count' => $rows
-                        ->pluck(
-                            'candidate.clientId'
-                        )
-                        ->unique()
-                        ->count(),
+                        'client_count' => $rows
+                            ->pluck(
+                                'candidate.clientId'
+                            )
+                            ->unique()
+                            ->count(),
 
-                    'evidence_item_count' => (int) $rows->sum(
-                        fn (
-                            ClientServiceCandidateAssessment $row
-                        ) => $row
-                            ->candidate
-                            ->evidenceCount
-                    ),
+                        'evidence_item_count' => (int) $rows->sum(
+                            fn (
+                                ClientServiceCandidateAssessment $row
+                            ) => $row
+                                ->candidate
+                                ->evidenceCount
+                        ),
 
-                    'supported_current_monthly_equivalent' => $this->supportedCurrentValue(
-                        $rows
-                    ),
+                        'supported_current_monthly_equivalent' => $this->supportedCurrentValue(
+                            $rows
+                        ),
                     ];
                 }
             )
@@ -246,27 +244,27 @@ final class CurrentCommercialPositionService
                     $first = $rows->first();
 
                     return [
-                    'client_id' => $first
-                        ->candidate
-                        ->clientId,
-
-                    'client_name' => $first
-                        ->candidate
-                        ->clientName,
-
-                    'service_count' => $rows->count(),
-
-                    'evidence_item_count' => (int) $rows->sum(
-                        fn (
-                            ClientServiceCandidateAssessment $row
-                        ) => $row
+                        'client_id' => $first
                             ->candidate
-                            ->evidenceCount
-                    ),
+                            ->clientId,
 
-                    'supported_current_monthly_equivalent' => $this->supportedCurrentValue(
-                        $rows
-                    ),
+                        'client_name' => $first
+                            ->candidate
+                            ->clientName,
+
+                        'service_count' => $rows->count(),
+
+                        'evidence_item_count' => (int) $rows->sum(
+                            fn (
+                                ClientServiceCandidateAssessment $row
+                            ) => $row
+                                ->candidate
+                                ->evidenceCount
+                        ),
+
+                        'supported_current_monthly_equivalent' => $this->supportedCurrentValue(
+                            $rows
+                        ),
                     ];
                 }
             )
