@@ -5,6 +5,7 @@ namespace App\Domains\BusinessBrain\Cfo\Briefing;
 use App\Domains\BusinessBrain\Briefing\BusinessBrainBrief;
 use App\Domains\BusinessBrain\Executive\Contracts\ExecutiveBrief;
 use App\Domains\BusinessBrain\FinancialPosition\FinancialPosition;
+use App\Domains\CommercialTruth\DTO\CurrentCommercialPosition;
 use App\Domains\FinancialTruth\Verification\DTOs\VerificationCandidate;
 use Carbon\CarbonImmutable;
 
@@ -33,7 +34,8 @@ class CfoBrief implements ExecutiveBrief
 
         public ?VerificationCandidate $bestNextVerification,
 
-        public CarbonImmutable $asOf
+        public CarbonImmutable $asOf,
+        public ?CurrentCommercialPosition $commercialPosition = null
     ) {}
 
     public function confidence(): int

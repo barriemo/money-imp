@@ -12,15 +12,23 @@ use App\Domains\BusinessBrain\FinancialPosition\LiabilityPosition;
 use App\Domains\BusinessBrain\FinancialPosition\ReceivablesPosition;
 use App\Domains\FinancialTruth\Verification\DTOs\VerificationCandidate;
 use App\Domains\FinancialTruth\Verification\Services\VerificationQueueService;
+use App\Models\AccountingInvoice;
+use App\Models\AccountingInvoiceItem;
+use App\Models\Client;
 use Carbon\CarbonImmutable;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Mockery\MockInterface;
 use Tests\TestCase;
 
 class CfoBriefCommandTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_cfo_brief_command_presents_executive_position(): void
     {
+        $this->seedCommercialEvidence();
+
         $this->mock(
             FinancialPositionService::class,
             function (MockInterface $mock): void {
@@ -109,7 +117,6 @@ class CfoBriefCommandTest extends TestCase
                     );
             }
         );
-
         $this->mock(
             BusinessBrainBriefService::class,
             function (MockInterface $mock): void {
@@ -182,5 +189,58 @@ class CfoBriefCommandTest extends TestCase
             'Business Current Account (£50,000.00)',
             $output
         );
+
+        $this->assertStringContainsString(
+            'Commercial evidence:',
+            $output
+        );
+
+        $this->assertStringContainsString(
+            'Supported current monthly-equivalent billing: £75.00',
+            $output
+        );
+
+        $this->assertStringContainsString(
+            'Current recurring service candidates: 1',
+            $output
+        );
+
+        $this->assertStringContainsString(
+            'Recently observed recurring billing excluded from current: £0.00',
+            $output
+        );
+
+        $this->assertStringContainsString(
+            'this is not MRR, contracted revenue, cash, or margin',
+            $output
+        );
+    }
+
+    private function seedCommercialEvidence(): void
+    {
+        $client = Client::factory()->create([
+            'name' => 'Commercial Evidence Client',
+        ]);
+
+        foreach ([
+            '2026-05-31',
+            '2026-06-30',
+            '2026-07-31',
+        ] as $date) {
+            $invoice = AccountingInvoice::create([
+                'client_id' => $client->id,
+                'invoice_number' => (string) str()->uuid(),
+                'invoice_date' => $date,
+                'status' => 'paid',
+            ]);
+
+            AccountingInvoiceItem::create([
+                'accounting_invoice_id' => $invoice->id,
+                'description' => 'Monthly Hosting, Security Updates & Backups',
+                'quantity' => 1,
+                'unit_price' => 75,
+                'net_amount' => 75,
+            ]);
+        }
     }
 }

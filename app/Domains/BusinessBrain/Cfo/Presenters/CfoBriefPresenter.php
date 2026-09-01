@@ -237,6 +237,55 @@ class CfoBriefPresenter
             );
 
         $lines[] = '';
+        if ($brief->commercialPosition !== null) {
+            $commercial =
+                $brief->commercialPosition;
+
+            $lines[] =
+                'Commercial evidence:';
+
+            $lines[] =
+                sprintf(
+                    '- Supported current monthly-equivalent billing: £%s',
+                    number_format(
+                        $commercial
+                            ->supportedCurrentMonthlyEquivalent,
+                        2
+                    )
+                );
+
+            $lines[] =
+                sprintf(
+                    '- Current recurring service candidates: %d',
+                    $commercial
+                        ->currentRecurringCandidateCount
+                );
+
+            $lines[] =
+                sprintf(
+                    '- Recently observed recurring billing excluded from current: £%s',
+                    number_format(
+                        $commercial
+                            ->recentlyObservedMonthlyEquivalent,
+                        2
+                    )
+                );
+
+            $lines[] =
+                sprintf(
+                    '- Candidates ready for reconciliation review: %d',
+                    $commercial
+                        ->readyForReviewCount
+                );
+
+            $lines[] =
+                '- Evidence status: invoice history supported, not reconciled';
+
+            $lines[] =
+                '- Evidence boundary: this is not MRR, contracted revenue, cash, or margin.';
+        }
+
+        $lines[] = '';
         $lines[] = 'Business Brain:';
 
         $lines[] =

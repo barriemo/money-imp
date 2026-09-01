@@ -14,14 +14,22 @@ use App\Domains\BusinessBrain\FinancialPosition\LiabilityPosition;
 use App\Domains\BusinessBrain\FinancialPosition\ReceivablesPosition;
 use App\Domains\FinancialTruth\Verification\DTOs\VerificationCandidate;
 use App\Domains\FinancialTruth\Verification\Services\VerificationQueueService;
+use App\Models\AccountingInvoice;
+use App\Models\AccountingInvoiceItem;
+use App\Models\Client;
 use Carbon\CarbonImmutable;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery\MockInterface;
 use Tests\TestCase;
 
 class CfoBriefServiceTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_cfo_brief_preserves_financial_uncertainty_and_sets_priorities(): void
     {
+        $this->seedCommercialEvidence();
+
         $position =
             new FinancialPosition(
                 cash: new CashTruth(
@@ -131,7 +139,6 @@ class CfoBriefServiceTest extends TestCase
                     );
             }
         );
-
         $this->mock(
             BusinessBrainBriefService::class,
             function (MockInterface $mock) use ($brain): void {
@@ -202,5 +209,58 @@ class CfoBriefServiceTest extends TestCase
             177461.02,
             $brief->bestNextVerification->amount
         );
+
+        $this->assertNotNull(
+            $brief->commercialPosition
+        );
+
+        $this->assertSame(
+            75.0,
+            $brief
+                ->commercialPosition
+                ->supportedCurrentMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            1,
+            $brief
+                ->commercialPosition
+                ->currentRecurringCandidateCount
+        );
+
+        $this->assertSame(
+            'invoice_history_supported_not_reconciled',
+            $brief
+                ->commercialPosition
+                ->evidenceStatus
+        );
+    }
+
+    private function seedCommercialEvidence(): void
+    {
+        $client = Client::factory()->create([
+            'name' => 'Commercial Evidence Client',
+        ]);
+
+        foreach ([
+            '2026-05-31',
+            '2026-06-30',
+            '2026-07-31',
+        ] as $date) {
+            $invoice = AccountingInvoice::create([
+                'client_id' => $client->id,
+                'invoice_number' => (string) str()->uuid(),
+                'invoice_date' => $date,
+                'status' => 'paid',
+            ]);
+
+            AccountingInvoiceItem::create([
+                'accounting_invoice_id' => $invoice->id,
+                'description' => 'Monthly Hosting, Security Updates & Backups',
+                'quantity' => 1,
+                'unit_price' => 75,
+                'net_amount' => 75,
+            ]);
+        }
     }
 }

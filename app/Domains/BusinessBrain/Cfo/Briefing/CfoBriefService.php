@@ -7,6 +7,7 @@ use App\Domains\BusinessBrain\Executive\Contracts\ExecutiveBrief;
 use App\Domains\BusinessBrain\Executive\Contracts\ExecutiveBriefService;
 use App\Domains\BusinessBrain\FinancialPosition\FinancialPosition;
 use App\Domains\BusinessBrain\FinancialPosition\FinancialPositionService;
+use App\Domains\CommercialTruth\Services\CurrentCommercialPositionService;
 use App\Domains\FinancialTruth\Verification\Services\VerificationQueueService;
 
 class CfoBriefService implements ExecutiveBriefService
@@ -16,7 +17,8 @@ class CfoBriefService implements ExecutiveBriefService
 
         private BusinessBrainBriefService $businessBrain,
 
-        private VerificationQueueService $verificationQueue
+        private VerificationQueueService $verificationQueue,
+        private CurrentCommercialPositionService $commercialPosition
     ) {}
 
     public function current(): ExecutiveBrief
@@ -32,6 +34,12 @@ class CfoBriefService implements ExecutiveBriefService
         $bestNextVerification =
             $this->verificationQueue
                 ->bestNext();
+
+        $commercialPosition =
+            $this->commercialPosition
+                ->position(
+                    $position->asOf
+                );
 
         return new CfoBrief(
             financialPosition: $position,
@@ -73,7 +81,8 @@ class CfoBriefService implements ExecutiveBriefService
 
             bestNextVerification: $bestNextVerification,
 
-            asOf: $position->asOf
+            asOf: $position->asOf,
+            commercialPosition: $commercialPosition
         );
     }
 
