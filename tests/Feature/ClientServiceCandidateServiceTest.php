@@ -343,6 +343,144 @@ class ClientServiceCandidateServiceTest extends TestCase
         );
     }
 
+    public function test_monthly_catch_up_quantity_does_not_inflate_current_monthly_value(): void
+    {
+        $client = Client::factory()->create();
+
+        foreach ([
+            ['date' => '2025-12-31', 'quantity' => 1],
+            ['date' => '2026-01-31', 'quantity' => 1],
+            ['date' => '2026-02-28', 'quantity' => 1],
+            ['date' => '2026-03-31', 'quantity' => 1],
+            ['date' => '2026-04-30', 'quantity' => 1],
+            ['date' => '2026-07-31', 'quantity' => 3],
+        ] as $row) {
+            $invoice = AccountingInvoice::create([
+                'client_id' => $client->id,
+                'invoice_number' => 'PPC-'.$row['date'],
+                'invoice_date' => $row['date'],
+                'status' => 'paid',
+            ]);
+
+            AccountingInvoiceItem::create([
+                'accounting_invoice_id' => $invoice->id,
+                'description' => 'Paid Management - PPC',
+                'quantity' => $row['quantity'],
+                'unit_price' => 100,
+                'net_amount' => 100 * $row['quantity'],
+            ]);
+        }
+
+        $candidate = app(
+            ClientServiceCandidateService::class
+        )
+            ->forClient($client)
+            ->firstOrFail(
+                fn ($row) => $row->serviceType
+                    === 'ppc_management'
+            );
+
+        $this->assertSame(
+            'monthly',
+            $candidate->cadence
+        );
+
+        $this->assertSame(
+            100.0,
+            $candidate->monthlyEquivalent
+        );
+    }
+
+    public function test_regular_monthly_multi_unit_billing_uses_full_net_period_value(): void
+    {
+        $client = Client::factory()->create();
+
+        foreach ([
+            '2026-05-31',
+            '2026-06-30',
+            '2026-07-31',
+        ] as $date) {
+            $invoice = AccountingInvoice::create([
+                'client_id' => $client->id,
+                'invoice_number' => 'EMAIL-'.$date,
+                'invoice_date' => $date,
+                'status' => 'paid',
+            ]);
+
+            AccountingInvoiceItem::create([
+                'accounting_invoice_id' => $invoice->id,
+                'description' => 'Monthly Email Licenses Office 365',
+                'quantity' => 3,
+                'unit_price' => 20,
+                'net_amount' => 60,
+            ]);
+        }
+
+        $candidate = app(
+            ClientServiceCandidateService::class
+        )
+            ->forClient($client)
+            ->firstOrFail(
+                fn ($row) => $row->serviceType
+                    === 'microsoft365'
+            );
+
+        $this->assertSame(
+            'monthly',
+            $candidate->cadence
+        );
+
+        $this->assertSame(
+            60.0,
+            $candidate->monthlyEquivalent
+        );
+    }
+
+    public function test_annual_multi_unit_billing_uses_full_net_annual_value(): void
+    {
+        $client = Client::factory()->create();
+
+        foreach ([
+            '2024-11-01',
+            '2025-11-01',
+            '2026-11-01',
+        ] as $date) {
+            $invoice = AccountingInvoice::create([
+                'client_id' => $client->id,
+                'invoice_number' => 'DOMAIN-'.$date,
+                'invoice_date' => $date,
+                'status' => 'paid',
+            ]);
+
+            AccountingInvoiceItem::create([
+                'accounting_invoice_id' => $invoice->id,
+                'description' => 'Annual Renewal for domains .co.uk & .com',
+                'quantity' => 2,
+                'unit_price' => 25,
+                'net_amount' => 50,
+            ]);
+        }
+
+        $candidate = app(
+            ClientServiceCandidateService::class
+        )
+            ->forClient($client)
+            ->firstOrFail(
+                fn ($row) => $row->serviceType
+                    === 'domain'
+            );
+
+        $this->assertSame(
+            'annual',
+            $candidate->cadence
+        );
+
+        $this->assertSame(
+            4.17,
+            $candidate->monthlyEquivalent
+        );
+    }
+
     public function test_candidate_aggregation_conserves_invoice_evidence_and_signed_value(): void
     {
         $firstClient = Client::factory()->create();

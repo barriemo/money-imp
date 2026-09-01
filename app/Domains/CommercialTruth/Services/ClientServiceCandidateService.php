@@ -70,6 +70,7 @@ final class ClientServiceCandidateService
             ->select([
                 'items.id as invoice_item_id',
                 'items.description',
+                'items.quantity',
                 'items.unit_price',
                 'items.net_amount',
                 'invoices.client_id',
@@ -89,6 +90,7 @@ final class ClientServiceCandidateService
                         'client_id' => (string) $item->client_id,
                         'client_name' => (string) $item->client_name,
                         'description' => (string) $item->description,
+                        'quantity' => (float) $item->quantity,
                         'unit_price' => (float) $item->unit_price,
                         'net_amount' => (float) $item->net_amount,
                         'invoice_date' => $item->invoice_date !== null
@@ -153,7 +155,9 @@ final class ClientServiceCandidateService
             ->map(
                 fn (array $observation) => (object) [
                     'invoice_date' => $observation['invoice_date'],
+                    'quantity' => $observation['quantity'],
                     'unit_price' => $observation['unit_price'],
+                    'net_amount' => $observation['net_amount'],
                 ]
             )
             ->values();

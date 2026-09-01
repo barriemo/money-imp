@@ -112,6 +112,7 @@ final class CanonicalServiceObservedBillingService
                 )
                 ->select([
                     'items.id as invoice_item_id',
+                    'items.quantity',
                     'items.unit_price',
                     'items.net_amount',
                     'items.created_at',
@@ -180,8 +181,14 @@ final class CanonicalServiceObservedBillingService
                             10
                         ),
 
+                        'quantity' => (float) $row
+                            ->quantity,
+
                         'unit_price' => (float) $row
                             ->unit_price,
+
+                        'net_amount' => (float) $row
+                            ->net_amount,
                     ]
                 )
                 ->values();

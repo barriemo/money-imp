@@ -203,6 +203,138 @@ class CanonicalServiceObservedBillingServiceTest extends TestCase
         );
     }
 
+    public function test_attributed_monthly_catch_up_quantity_does_not_inflate_current_value(): void
+    {
+        [
+            $client,
+            $service,
+        ] = $this->service();
+
+        foreach ([
+            ['date' => '2025-12-31', 'quantity' => 1],
+            ['date' => '2026-01-31', 'quantity' => 1],
+            ['date' => '2026-02-28', 'quantity' => 1],
+            ['date' => '2026-03-31', 'quantity' => 1],
+            ['date' => '2026-04-30', 'quantity' => 1],
+            ['date' => '2026-07-31', 'quantity' => 3],
+        ] as $row) {
+            $this->invoiceItem(
+                client: $client,
+                service: $service,
+                date: $row['date'],
+                amount: 100,
+                quantity: $row['quantity']
+            );
+        }
+
+        $truth = app(
+            CanonicalServiceObservedBillingService::class
+        )->forService(
+            $service,
+            CarbonImmutable::parse(
+                '2026-08-01'
+            )
+        );
+
+        $this->assertNotNull(
+            $truth
+        );
+
+        $this->assertSame(
+            'monthly',
+            $truth->cadence
+        );
+
+        $this->assertSame(
+            100.0,
+            $truth->currentMonthlyEquivalent
+        );
+    }
+
+    public function test_attributed_monthly_multi_unit_billing_uses_full_net_period_value(): void
+    {
+        [
+            $client,
+            $service,
+        ] = $this->service();
+
+        foreach ([
+            '2026-05-31',
+            '2026-06-30',
+            '2026-07-31',
+        ] as $date) {
+            $this->invoiceItem(
+                client: $client,
+                service: $service,
+                date: $date,
+                amount: 20,
+                quantity: 3
+            );
+        }
+
+        $truth = app(
+            CanonicalServiceObservedBillingService::class
+        )->forService(
+            $service,
+            CarbonImmutable::parse(
+                '2026-08-01'
+            )
+        );
+
+        $this->assertNotNull(
+            $truth
+        );
+
+        $this->assertSame(
+            60.0,
+            $truth->currentMonthlyEquivalent
+        );
+    }
+
+    public function test_attributed_annual_multi_unit_billing_uses_full_net_annual_value(): void
+    {
+        [
+            $client,
+            $service,
+        ] = $this->service();
+
+        foreach ([
+            '2024-11-01',
+            '2025-11-01',
+        ] as $date) {
+            $this->invoiceItem(
+                client: $client,
+                service: $service,
+                date: $date,
+                amount: 25,
+                quantity: 2
+            );
+        }
+
+        $truth = app(
+            CanonicalServiceObservedBillingService::class
+        )->forService(
+            $service,
+            CarbonImmutable::parse(
+                '2026-09-01'
+            )
+        );
+
+        $this->assertNotNull(
+            $truth
+        );
+
+        $this->assertSame(
+            'annual',
+            $truth->cadence
+        );
+
+        $this->assertSame(
+            4.17,
+            $truth->currentMonthlyEquivalent
+        );
+    }
+
     public function test_stale_attributed_monthly_history_is_not_current_value(): void
     {
         [
@@ -316,7 +448,8 @@ class CanonicalServiceObservedBillingServiceTest extends TestCase
         Client $client,
         ?ClientService $service,
         string $date,
-        float $amount
+        float $amount,
+        float $quantity = 1
     ): AccountingInvoiceItem {
         $invoice =
             AccountingInvoice::create([
@@ -330,9 +463,9 @@ class CanonicalServiceObservedBillingServiceTest extends TestCase
             'accounting_invoice_id' => $invoice->id,
             'client_service_id' => $service?->id,
             'description' => 'Monthly Hosting, Security Updates & Backups',
-            'quantity' => 1,
+            'quantity' => $quantity,
             'unit_price' => $amount,
-            'net_amount' => $amount,
+            'net_amount' => $amount * $quantity,
         ]);
     }
 }
