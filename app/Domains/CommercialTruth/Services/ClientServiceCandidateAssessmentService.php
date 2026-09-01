@@ -12,6 +12,7 @@ final class ClientServiceCandidateAssessmentService
 {
     public function __construct(
         private readonly ClientServiceCandidateService $candidates,
+        private readonly BillingEvidenceAssessmentService $billingEvidence,
     ) {}
 
     /**
@@ -59,48 +60,38 @@ final class ClientServiceCandidateAssessmentService
     ): ClientServiceCandidateAssessment {
         $asOf ??= CarbonImmutable::today();
 
+        $billingEvidence =
+            $this->billingEvidence
+                ->assess(
+                    cadence: $candidate->cadence,
+                    cadenceConfidence: $candidate
+                        ->cadenceConfidence,
+                    lastObservedOn: $candidate
+                        ->lastObservedOn,
+                    monthlyEquivalent: $candidate
+                        ->monthlyEquivalent,
+                    asOf: $asOf
+                );
+
         $daysSinceLastObservation =
-            $this->daysSinceLastObservation(
-                $candidate,
-                $asOf
-            );
+            $billingEvidence
+                ->daysSinceLastObservation;
 
         $cadenceEstablished =
-            $this->cadenceEstablished(
-                $candidate
-            );
+            $billingEvidence
+                ->cadenceEstablished;
 
         $recurringEvidence =
-            $cadenceEstablished
-            && in_array(
-                $candidate->cadence,
-                [
-                    'monthly',
-                    'annual',
-                ],
-                true
-            );
+            $billingEvidence
+                ->recurringEvidence;
 
-        $freshness = $this->freshness(
-            candidate: $candidate,
-            daysSinceLastObservation: $daysSinceLastObservation,
-        );
+        $freshness =
+            $billingEvidence
+                ->freshness;
 
-        /*
-         * Never convert stale or historical evidence into
-         * supposedly current recurring revenue.
-         *
-         * Null means current recurring value has not been
-         * established from sufficiently fresh evidence.
-         */
         $currentMonthlyEquivalent =
-            $recurringEvidence
-            && $freshness === 'current'
-                ? round(
-                    $candidate->monthlyEquivalent,
-                    2
-                )
-                : null;
+            $billingEvidence
+                ->currentMonthlyEquivalent;
 
         $promotionReadiness =
             $this->promotionReadiness(
@@ -125,101 +116,6 @@ final class ClientServiceCandidateAssessmentService
                 daysSinceLastObservation: $daysSinceLastObservation,
             ),
         );
-    }
-
-    private function daysSinceLastObservation(
-        ClientServiceCandidate $candidate,
-        CarbonImmutable $asOf
-    ): ?int {
-        if (
-            $candidate->lastObservedOn
-            === null
-        ) {
-            return null;
-        }
-
-        $lastObserved = CarbonImmutable::parse(
-            $candidate->lastObservedOn
-        )->startOfDay();
-
-        $asOf = $asOf->startOfDay();
-
-        /*
-         * Future-dated evidence should not produce a negative
-         * evidence age. It is treated as zero days old and can
-         * be investigated separately if encountered.
-         */
-        if (
-            $lastObserved->greaterThan(
-                $asOf
-            )
-        ) {
-            return 0;
-        }
-
-        return (int) $lastObserved
-            ->diffInDays(
-                $asOf
-            );
-    }
-
-    private function cadenceEstablished(
-        ClientServiceCandidate $candidate
-    ): bool {
-        return in_array(
-            $candidate->cadence,
-            [
-                'monthly',
-                'annual',
-            ],
-            true
-        )
-            && $candidate
-                ->cadenceConfidence >= 80;
-    }
-
-    private function freshness(
-        ClientServiceCandidate $candidate,
-        ?int $daysSinceLastObservation
-    ): string {
-        if (
-            $daysSinceLastObservation
-            === null
-        ) {
-            return 'unknown';
-        }
-
-        return match (
-            $candidate->cadence
-        ) {
-            'monthly' => match (true) {
-                $daysSinceLastObservation <= 45 => 'current',
-
-                $daysSinceLastObservation <= 90 => 'recently_observed',
-
-                $daysSinceLastObservation <= 180 => 'stale',
-
-                default => 'historical',
-            },
-
-            'annual' => match (true) {
-                $daysSinceLastObservation <= 400 => 'current',
-
-                $daysSinceLastObservation <= 460 => 'recently_observed',
-
-                $daysSinceLastObservation <= 550 => 'stale',
-
-                default => 'historical',
-            },
-
-            default => match (true) {
-                $daysSinceLastObservation <= 90 => 'recently_observed',
-
-                $daysSinceLastObservation <= 365 => 'stale',
-
-                default => 'historical',
-            },
-        };
     }
 
     private function promotionReadiness(
