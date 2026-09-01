@@ -125,6 +125,28 @@ class CfoBriefService implements ExecutiveBriefService
     ): array {
         $risks = [];
 
+        $reconciliation =
+            $position->liabilities->reconciliation;
+
+        if (
+            ($reconciliation['payments_observed'] ?? 0) > 0
+            &&
+            ($reconciliation['unresolved_difference'] ?? 0) > 0
+        ) {
+            $risks[] =
+                sprintf(
+                    'Observed statutory payments of £%s exist, but £%s remains unresolved against reported obligations.',
+                    number_format(
+                        $reconciliation['payments_observed'],
+                        2
+                    ),
+                    number_format(
+                        $reconciliation['unresolved_difference'],
+                        2
+                    )
+                );
+        }
+
         if ($position->liabilities->reportedOverdue > 0) {
             $risks[] =
                 sprintf(
@@ -176,6 +198,22 @@ class CfoBriefService implements ExecutiveBriefService
         FinancialPosition $position
     ): array {
         $unknowns = [];
+
+        $reconciliation =
+            $position->liabilities->reconciliation;
+
+        if (
+            ($reconciliation['unresolved_difference'] ?? 0) > 0
+        ) {
+            $unknowns[] =
+                sprintf(
+                    '£%s of reported statutory obligations remain unresolved after observed settlement evidence.',
+                    number_format(
+                        $reconciliation['unresolved_difference'],
+                        2
+                    )
+                );
+        }
 
         if ($position->liabilities->settlementUnresolved > 0) {
             if (! $position->liabilities->canInferPaymentAbsence) {
@@ -258,6 +296,16 @@ class CfoBriefService implements ExecutiveBriefService
         $brain
     ): array {
         $priorities = [];
+
+        $reconciliation =
+            $position->liabilities->reconciliation;
+
+        if (
+            ($reconciliation['unresolved_difference'] ?? 0) > 0
+        ) {
+            $priorities[] =
+                'Reconcile observed statutory payments against reported obligations to establish the true outstanding position.';
+        }
 
         if (
             $position->liabilities->reportedOverdue > 0
