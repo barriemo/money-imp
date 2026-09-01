@@ -4,6 +4,9 @@ namespace App\Domains\CommercialTruth\Services;
 
 use App\Domains\CommercialTruth\DTO\ClientServiceCandidateAssessment;
 use App\Domains\CommercialTruth\DTO\CurrentCommercialPosition;
+use App\Models\AccountingInvoiceItem;
+use App\Models\BillingRule;
+use App\Models\ClientService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
@@ -12,6 +15,8 @@ final class CurrentCommercialPositionService
     public function __construct(
         private readonly ClientServiceCandidateAssessmentService $assessments,
         private readonly ClientServiceReconciliationQueueService $reviewQueue,
+        private readonly CanonicalServiceObservedBillingService $canonicalObservedBilling,
+        private readonly ClientServiceAttributionReviewQueueService $attributionReviewQueue,
     ) {}
 
     public function position(
@@ -30,7 +35,12 @@ final class CurrentCommercialPositionService
             )
             ->values();
 
-        $recurring = $services
+        $unreconciledServices =
+            $this->withoutCanonicalAttribution(
+                $services
+            );
+
+        $recurring = $unreconciledServices
             ->filter(
                 fn (ClientServiceCandidateAssessment $assessment) => $assessment->recurringEvidence
             )
@@ -56,18 +66,98 @@ final class CurrentCommercialPositionService
             'historical'
         );
 
+        $canonicalObserved =
+            $this->canonicalObservedBilling
+                ->all($asOf)
+                ->filter(
+                    fn ($row) => $row->serviceStatus
+                        === 'active'
+                )
+                ->values();
+
+        $canonicalCurrent =
+            $canonicalObserved
+                ->filter(
+                    fn ($row) => $row->currentMonthlyEquivalent
+                        !== null
+                )
+                ->values();
+
+        $canonicalCurrentObservedMonthlyEquivalent =
+            round(
+                (float) $canonicalCurrent
+                    ->sum(
+                        fn ($row) => $row->currentMonthlyEquivalent
+                            ?? 0
+                    ),
+                2
+            );
+
+        $unreconciledCurrentMonthlyEquivalent =
+            $this->supportedCurrentValue(
+                $current
+            );
+
+        /*
+         * This is deliberately a partitioned total.
+         *
+         * A new unattributed invoice attached to an already
+         * canonical service does not change recurring value
+         * until a human approves that attribution.
+         */
+        $totalObservedCurrentMonthlyEquivalent =
+            round(
+                $canonicalCurrentObservedMonthlyEquivalent
+                + $unreconciledCurrentMonthlyEquivalent,
+                2
+            );
+
+        $canonicalActiveServiceCount =
+            ClientService::query()
+                ->where(
+                    'status',
+                    'active'
+                )
+                ->count();
+
+        /*
+         * BillingRule has a soft-delete column but currently
+         * does not use the SoftDeletes trait, so explicitly
+         * exclude deleted rows here.
+         */
+        $billingRuleCount =
+            BillingRule::query()
+                ->whereNull(
+                    'deleted_at'
+                )
+                ->where(
+                    'status',
+                    'active'
+                )
+                ->count();
+
+        $contractedValueStatus =
+            $billingRuleCount === 0
+                ? 'not_established'
+                : 'billing_rules_present_not_reconciled';
+
+        $evidenceStatus =
+            $this->evidenceStatus(
+                canonicalCurrentCount: $canonicalCurrent->count(),
+                unreconciledCurrentCount: $current->count(),
+                canonicalActiveServiceCount: $canonicalActiveServiceCount
+            );
+
         return new CurrentCommercialPosition(
             asOfDate: $asOf->toDateString(),
 
-            serviceCandidateCount: $services->count(),
+            serviceCandidateCount: $unreconciledServices->count(),
 
             recurringCandidateCount: $recurring->count(),
 
             currentRecurringCandidateCount: $current->count(),
 
-            supportedCurrentMonthlyEquivalent: $this->supportedCurrentValue(
-                $current
-            ),
+            supportedCurrentMonthlyEquivalent: $totalObservedCurrentMonthlyEquivalent,
 
             recentlyObservedRecurringCandidateCount: $recentlyObserved->count(),
 
@@ -91,14 +181,14 @@ final class CurrentCommercialPositionService
                 ->ready($asOf)
                 ->count(),
 
-            needsMoreEvidenceCount: $services
+            needsMoreEvidenceCount: $unreconciledServices
                 ->where(
                     'promotionReadiness',
                     'needs_more_evidence'
                 )
                 ->count(),
 
-            sourceEvidenceItemCount: (int) $services->sum(
+            sourceEvidenceItemCount: (int) $unreconciledServices->sum(
                 fn (
                     ClientServiceCandidateAssessment $assessment
                 ) => $assessment
@@ -122,13 +212,14 @@ final class CurrentCommercialPositionService
                 $current
             ),
 
-            evidenceStatus: 'invoice_history_supported_not_reconciled',
+            evidenceStatus: $evidenceStatus,
 
             caveats: [
-                'Invoice-history-supported billing is not itself canonical contracted ClientService value.',
-                'Supported current monthly equivalent is not MRR, contracted revenue, cash, or margin.',
-                'Recently observed, stale and historical recurring evidence is excluded from supported current value.',
-                'Unresolved candidates remain subject to human reconciliation before canonical promotion.',
+                'Observed current monthly equivalent is evidence-derived; it is not MRR, contracted revenue, cash, or margin.',
+                'Canonical-service-backed observed billing uses only invoice items explicitly attributed to active ClientServices.',
+                'Unattributed evidence on an existing canonical service is excluded from recurring value until attribution is human-approved.',
+                'Recently observed, stale and historical unresolved recurring evidence is excluded from current observed value.',
+                'Contracted recurring value remains unknown until BillingRule truth is explicitly reconciled.',
             ],
 
             provenance: [
@@ -141,8 +232,110 @@ final class CurrentCommercialPositionService
                 'candidate_aggregation' => 'ClientServiceCandidateService',
 
                 'freshness_assessment' => 'ClientServiceCandidateAssessmentService',
+                'canonical_observed_billing' => 'CanonicalServiceObservedBillingService',
+                'attribution_review' => 'ClientServiceAttributionReviewQueueService',
             ],
+            canonicalActiveServiceCount: $canonicalActiveServiceCount,
+            canonicalServicesWithObservedBillingCount: $canonicalObserved->count(),
+            canonicalCurrentRecurringServiceCount: $canonicalCurrent->count(),
+            canonicalCurrentObservedMonthlyEquivalent: $canonicalCurrentObservedMonthlyEquivalent,
+            unreconciledCurrentRecurringCandidateCount: $current->count(),
+            unreconciledCurrentMonthlyEquivalent: $unreconciledCurrentMonthlyEquivalent,
+            attributionReviewReadyCount: $this->attributionReviewQueue
+                ->ready()
+                ->count(),
+            billingRuleCount: $billingRuleCount,
+            contractedMonthlyValue: null,
+            contractedValueStatus: $contractedValueStatus,
         );
+    }
+
+    private function withoutCanonicalAttribution(
+        Collection $assessments
+    ): Collection {
+        $invoiceItemIds =
+            $assessments
+                ->flatMap(
+                    fn (
+                        ClientServiceCandidateAssessment $assessment
+                    ) => $assessment
+                        ->candidate
+                        ->invoiceItemIds
+                )
+                ->unique()
+                ->values();
+
+        if ($invoiceItemIds->isEmpty()) {
+            return $assessments;
+        }
+
+        $attributedIds =
+            AccountingInvoiceItem::query()
+                ->whereIn(
+                    'id',
+                    $invoiceItemIds->all()
+                )
+                ->whereNotNull(
+                    'client_service_id'
+                )
+                ->pluck('id')
+                ->map(
+                    fn ($id) => (string) $id
+                )
+                ->flip();
+
+        return $assessments
+            ->filter(
+                function (
+                    ClientServiceCandidateAssessment $assessment
+                ) use (
+                    $attributedIds
+                ): bool {
+                    foreach (
+                        $assessment
+                            ->candidate
+                            ->invoiceItemIds as $invoiceItemId
+                    ) {
+                        if (
+                            $attributedIds->has(
+                                (string) $invoiceItemId
+                            )
+                        ) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }
+            )
+            ->values();
+    }
+
+    private function evidenceStatus(
+        int $canonicalCurrentCount,
+        int $unreconciledCurrentCount,
+        int $canonicalActiveServiceCount
+    ): string {
+        if (
+            $canonicalCurrentCount > 0
+            && $unreconciledCurrentCount > 0
+        ) {
+            return 'partially_reconciled';
+        }
+
+        if ($canonicalCurrentCount > 0) {
+            return 'canonical_service_observed_billing';
+        }
+
+        if ($unreconciledCurrentCount > 0) {
+            return 'invoice_history_supported_not_reconciled';
+        }
+
+        if ($canonicalActiveServiceCount > 0) {
+            return 'canonical_services_without_current_recurring_evidence';
+        }
+
+        return 'no_current_recurring_evidence';
     }
 
     private function withFreshness(

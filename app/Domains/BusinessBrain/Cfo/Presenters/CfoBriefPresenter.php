@@ -246,7 +246,7 @@ class CfoBriefPresenter
 
             $lines[] =
                 sprintf(
-                    '- Supported current monthly-equivalent billing: £%s',
+                    '- Observed current monthly-equivalent billing: £%s',
                     number_format(
                         $commercial
                             ->supportedCurrentMonthlyEquivalent,
@@ -256,9 +256,47 @@ class CfoBriefPresenter
 
             $lines[] =
                 sprintf(
-                    '- Current recurring service candidates: %d',
+                    '- Attached to canonical services: £%s across %d current recurring service(s)',
+                    number_format(
+                        $commercial
+                            ->canonicalCurrentObservedMonthlyEquivalent,
+                        2
+                    ),
                     $commercial
-                        ->currentRecurringCandidateCount
+                        ->canonicalCurrentRecurringServiceCount
+                );
+
+            $lines[] =
+                sprintf(
+                    '- Still unreconciled: £%s across %d current recurring candidate(s)',
+                    number_format(
+                        $commercial
+                            ->unreconciledCurrentMonthlyEquivalent,
+                        2
+                    ),
+                    $commercial
+                        ->unreconciledCurrentRecurringCandidateCount
+                );
+
+            $lines[] =
+                sprintf(
+                    '- Active canonical services: %d',
+                    $commercial
+                        ->canonicalActiveServiceCount
+                );
+
+            $lines[] =
+                sprintf(
+                    '- Service candidates ready for existence review: %d',
+                    $commercial
+                        ->readyForReviewCount
+                );
+
+            $lines[] =
+                sprintf(
+                    '- Invoice attribution candidates ready for review: %d',
+                    $commercial
+                        ->attributionReviewReadyCount
                 );
 
             $lines[] =
@@ -271,18 +309,42 @@ class CfoBriefPresenter
                     )
                 );
 
+            $contractStatus =
+                match (
+                    $commercial
+                        ->contractedValueStatus
+                ) {
+                    'not_established' => 'billing terms not established',
+
+                    'billing_rules_present_not_reconciled' => 'billing rules exist but are not reconciled',
+
+                    default => str_replace(
+                        '_',
+                        ' ',
+                        $commercial
+                            ->contractedValueStatus
+                    ),
+                };
+
             $lines[] =
                 sprintf(
-                    '- Candidates ready for reconciliation review: %d',
-                    $commercial
-                        ->readyForReviewCount
+                    '- Contracted recurring value: UNKNOWN (%s)',
+                    $contractStatus
                 );
 
             $lines[] =
-                '- Evidence status: invoice history supported, not reconciled';
+                sprintf(
+                    '- Evidence status: %s',
+                    str_replace(
+                        '_',
+                        ' ',
+                        $commercial
+                            ->evidenceStatus
+                    )
+                );
 
             $lines[] =
-                '- Evidence boundary: this is not MRR, contracted revenue, cash, or margin.';
+                '- Evidence boundary: observed billing is not contracted MRR, cash, or margin.';
         }
 
         $lines[] = '';

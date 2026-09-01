@@ -229,6 +229,33 @@ class CfoBriefServiceTest extends TestCase
         );
 
         $this->assertSame(
+            0.0,
+            $brief
+                ->commercialPosition
+                ->canonicalCurrentObservedMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            75.0,
+            $brief
+                ->commercialPosition
+                ->unreconciledCurrentMonthlyEquivalent
+        );
+
+        $this->assertNull(
+            $brief
+                ->commercialPosition
+                ->contractedMonthlyValue
+        );
+
+        $this->assertSame(
+            'not_established',
+            $brief
+                ->commercialPosition
+                ->contractedValueStatus
+        );
+
+        $this->assertSame(
             'invoice_history_supported_not_reconciled',
             $brief
                 ->commercialPosition

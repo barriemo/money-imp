@@ -2,11 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Domains\CommercialTruth\Services\ClientServiceAttributionReviewQueueService;
+use App\Domains\CommercialTruth\Services\ClientServiceAttributionReviewService;
+use App\Domains\CommercialTruth\Services\ClientServiceCandidateAssessmentService;
+use App\Domains\CommercialTruth\Services\ClientServiceReconciliationService;
 use App\Domains\CommercialTruth\Services\CurrentCommercialPositionService;
 use App\Models\AccountingInvoice;
 use App\Models\AccountingInvoiceItem;
 use App\Models\Client;
 use App\Models\ClientService;
+use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -248,6 +253,258 @@ class CurrentCommercialPositionServiceTest extends TestCase
         );
     }
 
+    public function test_position_separates_canonical_observed_billing_from_unreconciled_evidence_without_inventing_contract_value(): void
+    {
+        $client =
+            Client::factory()->create();
+
+        foreach (
+            [
+                '2026-06-30',
+                '2026-07-31',
+                '2026-08-31',
+            ] as $date
+        ) {
+            $this->invoiceItem(
+                client: $client,
+                date: $date,
+                description: 'Monthly Hosting, Security Updates & Backups',
+                amount: 75,
+            );
+        }
+
+        $asOf =
+            CarbonImmutable::parse(
+                '2026-09-01'
+            );
+
+        $before =
+            app(
+                CurrentCommercialPositionService::class
+            )->position(
+                $asOf
+            );
+
+        $this->assertSame(
+            75.0,
+            $before
+                ->supportedCurrentMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            0.0,
+            $before
+                ->canonicalCurrentObservedMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            75.0,
+            $before
+                ->unreconciledCurrentMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            1,
+            $before
+                ->unreconciledCurrentRecurringCandidateCount
+        );
+
+        $this->assertNull(
+            $before
+                ->contractedMonthlyValue
+        );
+
+        $this->assertSame(
+            'not_established',
+            $before
+                ->contractedValueStatus
+        );
+
+        $user =
+            User::factory()->create();
+
+        $assessment =
+            app(
+                ClientServiceCandidateAssessmentService::class
+            )
+                ->all(
+                    $asOf
+                )
+                ->firstOrFail(
+                    fn ($row) => $row
+                        ->candidate
+                        ->clientId
+                            === $client->id
+                        && $row
+                            ->promotionReadiness
+                            === 'ready_for_review'
+                );
+
+        app(
+            ClientServiceReconciliationService::class
+        )->confirm(
+            clientId: $client->id,
+            candidateFingerprint: $assessment
+                ->candidate
+                ->fingerprint,
+            serviceName: 'Website Hosting',
+            reviewedBy: $user->id,
+            asOf: $asOf
+        );
+
+        $confirmed =
+            app(
+                CurrentCommercialPositionService::class
+            )->position(
+                $asOf
+            );
+
+        $this->assertSame(
+            1,
+            $confirmed
+                ->canonicalActiveServiceCount
+        );
+
+        $this->assertSame(
+            1,
+            $confirmed
+                ->canonicalCurrentRecurringServiceCount
+        );
+
+        $this->assertSame(
+            75.0,
+            $confirmed
+                ->canonicalCurrentObservedMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            0.0,
+            $confirmed
+                ->unreconciledCurrentMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            75.0,
+            $confirmed
+                ->supportedCurrentMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            0,
+            $confirmed
+                ->currentRecurringCandidateCount
+        );
+
+        $this->assertSame(
+            0,
+            $confirmed
+                ->readyForReviewCount
+        );
+
+        $this->assertSame(
+            'canonical_service_observed_billing',
+            $confirmed
+                ->evidenceStatus
+        );
+
+        $this->assertNull(
+            $confirmed
+                ->contractedMonthlyValue
+        );
+
+        /*
+         * New unmatched evidence must not change canonical
+         * observed recurring value before human attribution.
+         */
+        $this->invoiceItem(
+            client: $client,
+            date: '2026-09-30',
+            description: 'Monthly Hosting, Security Updates & Backups',
+            amount: 100,
+        );
+
+        $pending =
+            app(
+                CurrentCommercialPositionService::class
+            )->position(
+                CarbonImmutable::parse(
+                    '2026-10-01'
+                )
+            );
+
+        $this->assertSame(
+            75.0,
+            $pending
+                ->canonicalCurrentObservedMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            0.0,
+            $pending
+                ->unreconciledCurrentMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            75.0,
+            $pending
+                ->supportedCurrentMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            1,
+            $pending
+                ->attributionReviewReadyCount
+        );
+
+        $attribution =
+            app(
+                ClientServiceAttributionReviewQueueService::class
+            )
+                ->ready()
+                ->firstOrFail();
+
+        app(
+            ClientServiceAttributionReviewService::class
+        )->approve(
+            clientId: $client->id,
+            candidateFingerprint: $attribution
+                ->candidateFingerprint,
+            reviewedBy: $user->id
+        );
+
+        $approved =
+            app(
+                CurrentCommercialPositionService::class
+            )->position(
+                CarbonImmutable::parse(
+                    '2026-10-01'
+                )
+            );
+
+        $this->assertSame(
+            100.0,
+            $approved
+                ->canonicalCurrentObservedMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            100.0,
+            $approved
+                ->supportedCurrentMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            0,
+            $approved
+                ->attributionReviewReadyCount
+        );
+
+        $this->assertNull(
+            $approved
+                ->contractedMonthlyValue
+        );
+    }
+
     public function test_project_and_pass_through_candidates_are_excluded_from_commercial_position(): void
     {
         $client = Client::factory()->create();
@@ -328,7 +585,7 @@ class CurrentCommercialPositionServiceTest extends TestCase
         string $date,
         string $description,
         float $amount
-    ): void {
+    ): AccountingInvoiceItem {
         $invoice = AccountingInvoice::create([
             'client_id' => $client->id,
             'invoice_number' => (string) str()->uuid(),
@@ -336,7 +593,7 @@ class CurrentCommercialPositionServiceTest extends TestCase
             'status' => 'paid',
         ]);
 
-        AccountingInvoiceItem::create([
+        return AccountingInvoiceItem::create([
             'accounting_invoice_id' => $invoice->id,
 
             'description' => $description,

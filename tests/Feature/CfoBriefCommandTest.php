@@ -196,12 +196,22 @@ class CfoBriefCommandTest extends TestCase
         );
 
         $this->assertStringContainsString(
-            'Supported current monthly-equivalent billing: £75.00',
+            'Observed current monthly-equivalent billing: £75.00',
             $output
         );
 
         $this->assertStringContainsString(
-            'Current recurring service candidates: 1',
+            'Still unreconciled: £75.00 across 1 current recurring candidate(s)',
+            $output
+        );
+
+        $this->assertStringContainsString(
+            'Attached to canonical services: £0.00 across 0 current recurring service(s)',
+            $output
+        );
+
+        $this->assertStringContainsString(
+            'Contracted recurring value: UNKNOWN (billing terms not established)',
             $output
         );
 
@@ -211,7 +221,7 @@ class CfoBriefCommandTest extends TestCase
         );
 
         $this->assertStringContainsString(
-            'this is not MRR, contracted revenue, cash, or margin',
+            'observed billing is not contracted MRR, cash, or margin',
             $output
         );
     }
