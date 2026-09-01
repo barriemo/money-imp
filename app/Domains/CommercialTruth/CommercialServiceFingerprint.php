@@ -17,8 +17,16 @@ class CommercialServiceFingerprint
             $normalised
         );
 
-        $serviceHint = $this->serviceHint(
+        $rawServiceHint = $this->serviceHint(
             $description
+        );
+
+        $serviceHint = $this->displayServiceHint(
+            $rawServiceHint
+        );
+
+        $identityHint = $this->identityServiceHint(
+            $rawServiceHint
         );
 
         return [
@@ -35,7 +43,7 @@ class CommercialServiceFingerprint
                 implode('|', [
                     $serviceType,
                     strtolower(
-                        $serviceHint
+                        $identityHint
                         ?? ''
                     ),
                 ])
@@ -270,9 +278,141 @@ class CommercialServiceFingerprint
         };
     }
 
+    private function displayServiceHint(
+        ?string $hint
+    ): ?string {
+        if ($hint === null) {
+            return null;
+        }
+
+        if (
+            $this->isPureTemporalHint(
+                $hint
+            )
+        ) {
+            return null;
+        }
+
+        $normalised = $this->stripTrailingPeriod(
+            $hint
+        );
+
+        return $normalised !== ''
+            ? $normalised
+            : null;
+    }
+
+    private function identityServiceHint(
+        ?string $hint
+    ): ?string {
+        if ($hint === null) {
+            return null;
+        }
+
+        /*
+         * A pure billing-period suffix should join other
+         * period-labelled observations, but deliberately not
+         * collapse into historic observations which never had
+         * a suffix at all.
+         */
+        if (
+            $this->isPureTemporalHint(
+                $hint
+            )
+        ) {
+            return '__periodic_suffix__';
+        }
+
+        $normalised = $this->stripTrailingPeriod(
+            $hint
+        );
+
+        return $normalised !== ''
+            ? $normalised
+            : null;
+    }
+
+    private function isPureTemporalHint(
+        string $hint
+    ): bool {
+        $hint = trim(
+            $hint
+        );
+
+        return preg_match(
+            '/^(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s*(?:20)?\d{2}|(?:20)?(?:2\d|3\d))$/i',
+            $hint
+        ) === 1;
+    }
+
+    private function stripTrailingPeriod(
+        string $hint
+    ): string {
+        return Str::of(
+            $hint
+        )
+            /*
+             * Ruby Online March26
+             * Ruby Online Mar 26
+             * Ruby Online March 2026
+             */
+            ->replaceMatches(
+                '/\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s*(?:20)?\d{2}$/i',
+                ''
+            )
+            /*
+             * Ruby Online 26
+             *
+             * Restrict this to plausible abbreviated years so
+             * things such as "Server 2" remain meaningful.
+             */
+            ->replaceMatches(
+                '/\s+(?:2\d|3\d)$/',
+                ''
+            )
+            ->replaceMatches(
+                '/\s+/',
+                ' '
+            )
+            ->trim()
+            ->toString();
+    }
+
     private function serviceHint(
         string $description
     ): ?string {
+        /*
+         * Purchase-order numbers identify the customer's
+         * procurement reference, not the commercial service.
+         *
+         * Preserve any meaningful text after the PO number
+         * (for example "Legacy") as a possible service hint.
+         */
+        if (
+            preg_match(
+                '/-\\s*PO[-\\s]*\\d+\\s*$/i',
+                $description
+            ) === 1
+        ) {
+            return null;
+        }
+
+        if (
+            preg_match(
+                '/-\\s*PO[-\\s]*\\d+\\s+(.+)$/i',
+                $description,
+                $purchaseOrderMatch
+            ) === 1
+        ) {
+            $purchaseOrderHint = trim(
+                $purchaseOrderMatch[1]
+            );
+
+            return $purchaseOrderHint !== ''
+                ? $purchaseOrderHint
+                : null;
+        }
+
         if (
             ! str_contains(
                 $description,

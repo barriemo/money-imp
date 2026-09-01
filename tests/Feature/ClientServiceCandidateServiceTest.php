@@ -428,4 +428,108 @@ class ClientServiceCandidateServiceTest extends TestCase
             ClientService::count()
         );
     }
+
+    public function test_period_suffixes_form_one_recurring_candidate_without_merging_old_no_hint_history(): void
+    {
+        $client = Client::factory()->create();
+
+        /*
+         * Historic no-hint evidence remains a separate episode.
+         */
+        foreach ([
+            '2025-01-31',
+            '2025-02-28',
+            '2025-03-31',
+        ] as $date) {
+            $invoice = AccountingInvoice::create([
+                'client_id' => $client->id,
+                'invoice_number' => 'OLD-'.$date,
+                'invoice_date' => $date,
+                'status' => 'paid',
+            ]);
+
+            AccountingInvoiceItem::create([
+                'accounting_invoice_id' => $invoice->id,
+                'description' => 'Monthly Email Licenses Office 365',
+                'quantity' => 1,
+                'unit_price' => 60,
+                'net_amount' => 60,
+            ]);
+        }
+
+        foreach ([
+            [
+                'date' => '2026-01-31',
+                'period' => 'Jan26',
+            ],
+            [
+                'date' => '2026-02-28',
+                'period' => 'Feb26',
+            ],
+            [
+                'date' => '2026-03-31',
+                'period' => 'Mar26',
+            ],
+        ] as $row) {
+            $invoice = AccountingInvoice::create([
+                'client_id' => $client->id,
+                'invoice_number' => 'NEW-'.$row['date'],
+                'invoice_date' => $row['date'],
+                'status' => 'paid',
+            ]);
+
+            AccountingInvoiceItem::create([
+                'accounting_invoice_id' => $invoice->id,
+                'description' => 'Monthly Email Licenses Office 365 - '
+                    .$row['period'],
+                'quantity' => 1,
+                'unit_price' => 60,
+                'net_amount' => 60,
+            ]);
+        }
+
+        $candidates = app(
+            ClientServiceCandidateService::class
+        )
+            ->forClient($client)
+            ->filter(
+                fn ($candidate) => $candidate->serviceType
+                        === 'microsoft365'
+            )
+            ->values();
+
+        $this->assertCount(
+            2,
+            $candidates
+        );
+
+        $currentEpisode = $candidates
+            ->first(
+                fn ($candidate) => $candidate->lastObservedOn
+                        === '2026-03-31'
+            );
+
+        $this->assertNotNull(
+            $currentEpisode
+        );
+
+        $this->assertNull(
+            $currentEpisode->serviceHint
+        );
+
+        $this->assertSame(
+            3,
+            $currentEpisode->evidenceCount
+        );
+
+        $this->assertSame(
+            'monthly',
+            $currentEpisode->cadence
+        );
+
+        $this->assertSame(
+            60.0,
+            $currentEpisode->monthlyEquivalent
+        );
+    }
 }

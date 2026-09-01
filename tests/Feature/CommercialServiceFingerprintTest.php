@@ -214,4 +214,158 @@ class CommercialServiceFingerprintTest extends TestCase
             $result['classification_confidence']
         );
     }
+
+    public function test_billing_period_suffixes_do_not_create_distinct_service_identities(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $november = $service->fingerprint(
+            'Monthly Email Licenses Office 365 - Nov25'
+        );
+
+        $december = $service->fingerprint(
+            'Monthly Email Licenses Office 365 - Dec25'
+        );
+
+        $this->assertNull(
+            $november['service_hint']
+        );
+
+        $this->assertNull(
+            $december['service_hint']
+        );
+
+        $this->assertSame(
+            $november['fingerprint'],
+            $december['fingerprint']
+        );
+    }
+
+    public function test_period_labelled_service_does_not_silently_merge_with_no_hint_history(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $historic = $service->fingerprint(
+            'Monthly Email Licenses Office 365'
+        );
+
+        $periodLabelled = $service->fingerprint(
+            'Monthly Email Licenses Office 365 - Nov25'
+        );
+
+        $this->assertNotSame(
+            $historic['fingerprint'],
+            $periodLabelled['fingerprint']
+        );
+    }
+
+    public function test_named_service_hint_keeps_identity_but_loses_trailing_period_noise(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $march = $service->fingerprint(
+            'Monthly Hosting - Ruby Online March26'
+        );
+
+        $shortYear = $service->fingerprint(
+            'Monthly Hosting - Ruby Online 26'
+        );
+
+        $this->assertSame(
+            'Ruby Online',
+            $march['service_hint']
+        );
+
+        $this->assertSame(
+            'Ruby Online',
+            $shortYear['service_hint']
+        );
+
+        $this->assertSame(
+            $march['fingerprint'],
+            $shortYear['fingerprint']
+        );
+    }
+
+    public function test_real_hosting_property_hints_remain_distinct(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $usa = $service->fingerprint(
+            'Monthly Hosting - USA'
+        );
+
+        $uk = $service->fingerprint(
+            'Monthly Hosting - UK'
+        );
+
+        $this->assertSame(
+            'USA',
+            $usa['service_hint']
+        );
+
+        $this->assertSame(
+            'UK',
+            $uk['service_hint']
+        );
+
+        $this->assertNotSame(
+            $usa['fingerprint'],
+            $uk['fingerprint']
+        );
+    }
+
+    public function test_purchase_order_number_is_not_a_service_identity(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $first = $service->fingerprint(
+            "Annual Hosting of Corporate Website\n"
+            .'(Hosting, Security Updates & Backups) - PO-4011'
+        );
+
+        $second = $service->fingerprint(
+            "Annual Hosting of Corporate Website\n"
+            .'(Hosting, Security Updates & Backups) - PO-4728'
+        );
+
+        $this->assertNull(
+            $first['service_hint']
+        );
+
+        $this->assertNull(
+            $second['service_hint']
+        );
+
+        $this->assertSame(
+            $first['fingerprint'],
+            $second['fingerprint']
+        );
+    }
+
+    public function test_text_after_purchase_order_number_can_remain_a_service_hint(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $result = $service->fingerprint(
+            'Annual Hosting of Corporate Website - PO-4728 Legacy'
+        );
+
+        $this->assertSame(
+            'Legacy',
+            $result['service_hint']
+        );
+    }
 }
