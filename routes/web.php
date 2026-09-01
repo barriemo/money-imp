@@ -3,6 +3,7 @@
 use App\Http\Controllers\BillingQueueController;
 use App\Http\Controllers\BillingReviewController;
 use App\Http\Controllers\ChaseQueueController;
+use App\Http\Controllers\CommercialReconciliationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DebtorController;
 use App\Http\Controllers\ExecutiveActionController;
@@ -13,9 +14,9 @@ use App\Http\Controllers\MoneyOutController;
 use App\Http\Controllers\MoneyOutImportController;
 use App\Http\Controllers\ReconciliationInboxController;
 use App\Http\Controllers\SupplierAssetController;
-use App\Http\Controllers\SupplierPaymentReconciliationController;
 use App\Http\Controllers\SupplierAttributionRuleController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierPaymentReconciliationController;
 use App\Http\Controllers\SupplierTransactionController;
 use App\Http\Controllers\UniversalImportController;
 use App\Http\Controllers\WorkLogController;
@@ -80,6 +81,64 @@ Route::middleware('auth')->group(function (): void {
         '/reconciliation/{transaction}/ignore',
         [ReconciliationInboxController::class, 'ignore']
     )->name('reconciliation.ignore');
+});
+
+Route::middleware('auth')->group(function (): void {
+    Route::get(
+        '/reconciliation/commercial',
+        [
+            CommercialReconciliationController::class,
+            'index',
+        ]
+    )->name('reconciliation.commercial.index');
+
+    Route::post(
+        '/reconciliation/commercial/{clientId}/{candidateFingerprint}/confirm',
+        [
+            CommercialReconciliationController::class,
+            'confirmService',
+        ]
+    )->name('reconciliation.commercial.confirm');
+
+    Route::post(
+        '/reconciliation/commercial/{clientId}/{candidateFingerprint}/merge',
+        [
+            CommercialReconciliationController::class,
+            'mergeService',
+        ]
+    )->name('reconciliation.commercial.merge');
+
+    Route::post(
+        '/reconciliation/commercial/{clientId}/{candidateFingerprint}/defer',
+        [
+            CommercialReconciliationController::class,
+            'deferService',
+        ]
+    )->name('reconciliation.commercial.defer');
+
+    Route::post(
+        '/reconciliation/commercial/{clientId}/{candidateFingerprint}/reject',
+        [
+            CommercialReconciliationController::class,
+            'rejectService',
+        ]
+    )->name('reconciliation.commercial.reject');
+
+    Route::post(
+        '/reconciliation/commercial/{clientId}/{candidateFingerprint}/attribution/approve',
+        [
+            CommercialReconciliationController::class,
+            'approveAttribution',
+        ]
+    )->name('reconciliation.commercial.attribution.approve');
+
+    Route::post(
+        '/reconciliation/commercial/{clientId}/{candidateFingerprint}/attribution/reject',
+        [
+            CommercialReconciliationController::class,
+            'rejectAttribution',
+        ]
+    )->name('reconciliation.commercial.attribution.reject');
 });
 
 Route::middleware('auth')->group(function (): void {

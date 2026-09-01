@@ -292,6 +292,15 @@ final class ClientServiceReconciliationService
                             'client_service' => 'The target client service must belong to the same client as the reviewed candidate.',
                         ]);
                     }
+
+                    if (
+                        $service->status
+                        !== 'active'
+                    ) {
+                        throw ValidationException::withMessages([
+                            'client_service' => 'The target client service must be active before reviewed evidence can be merged into it.',
+                        ]);
+                    }
                 }
 
                 foreach ($items as $item) {

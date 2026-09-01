@@ -165,6 +165,12 @@
                 {{ $label }} {{ $counts[$key] }}
             </a>
         @endforeach
+
+        <a
+            href="{{ route('reconciliation.commercial.index') }}"
+        >
+            Commercial services
+        </a>
     </div>
 
     <datalist id="money-imp-clients">
