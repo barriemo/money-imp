@@ -35,6 +35,34 @@ class CfoBriefPresenter
                 )
             ),
             sprintf(
+                '- Reported bank balances: £%s',
+                number_format(
+                    $position->cash->reportedAccountingBalance,
+                    2
+                )
+            ),
+            sprintf(
+                '- Reported card exposure: £%s',
+                number_format(
+                    $position->cash->reportedUnverifiedCardDebt,
+                    2
+                )
+            ),
+            sprintf(
+                '- Safe available cash: %s',
+                $position->cash->safeAvailableCash === null
+                    ? 'Not established'
+                    : '£'.number_format(
+                        $position->cash->safeAvailableCash,
+                        2
+                    )
+            ),
+            sprintf(
+                '- Bank evidence: %d connected accounts, %d verified',
+                $position->cash->accountCount,
+                $position->cash->verifiedAccountCount
+            ),
+            sprintf(
                 '- Ledger receivables: £%s',
                 number_format(
                     $position->receivables
@@ -77,6 +105,60 @@ class CfoBriefPresenter
                         $position->liabilities
                             ->reportedOverdue,
                         2
+                    )
+                );
+        }
+
+        $reconciliation =
+            $position->liabilities
+                ->reconciliation;
+
+        if ($reconciliation !== []) {
+
+            $lines[] = '';
+
+            $lines[] = 'Statutory reconciliation:';
+
+            $lines[] =
+                sprintf(
+                    '- Reported obligations: £%s',
+                    number_format(
+                        (float) (
+                            $reconciliation['reported_total'] ?? 0
+                        ),
+                        2
+                    )
+                );
+
+            $lines[] =
+                sprintf(
+                    '- Payments observed: £%s',
+                    number_format(
+                        (float) (
+                            $reconciliation['payments_observed'] ?? 0
+                        ),
+                        2
+                    )
+                );
+
+            $lines[] =
+                sprintf(
+                    '- Unresolved difference: £%s',
+                    number_format(
+                        (float) (
+                            $reconciliation['unresolved_difference'] ?? 0
+                        ),
+                        2
+                    )
+                );
+
+            $lines[] =
+                sprintf(
+                    '- Confidence: %s',
+                    ucfirst(
+                        (string) (
+                            $reconciliation['confidence'] ?? 'unknown'
+                        )
                     )
                 );
         }
