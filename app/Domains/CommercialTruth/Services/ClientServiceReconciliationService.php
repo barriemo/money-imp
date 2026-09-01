@@ -4,6 +4,7 @@ namespace App\Domains\CommercialTruth\Services;
 
 use App\Domains\CommercialTruth\DTO\ClientServiceCandidateAssessment;
 use App\Models\AccountingInvoiceItem;
+use App\Models\ClientService;
 use App\Models\ClientServiceReconciliation;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -47,6 +48,350 @@ final class ClientServiceReconciliationService
             reviewedBy: $reviewedBy,
             reason: $reason,
             asOf: $asOf
+        );
+    }
+
+    public function confirm(
+        string $clientId,
+        string $candidateFingerprint,
+        string $serviceName,
+        int $reviewedBy,
+        ?string $reason = null,
+        ?CarbonImmutable $asOf = null
+    ): ClientServiceReconciliation {
+        $serviceName = trim(
+            $serviceName
+        );
+
+        if ($serviceName === '') {
+            throw ValidationException::withMessages([
+                'service_name' => 'A canonical client service name is required.',
+            ]);
+        }
+
+        return $this->promote(
+            clientId: $clientId,
+            candidateFingerprint: $candidateFingerprint,
+            decision: 'confirmed',
+            reviewedBy: $reviewedBy,
+            reason: $reason,
+            asOf: $asOf,
+            serviceName: $serviceName,
+            targetClientServiceId: null
+        );
+    }
+
+    public function merge(
+        string $clientId,
+        string $candidateFingerprint,
+        string $clientServiceId,
+        int $reviewedBy,
+        ?string $reason = null,
+        ?CarbonImmutable $asOf = null
+    ): ClientServiceReconciliation {
+        return $this->promote(
+            clientId: $clientId,
+            candidateFingerprint: $candidateFingerprint,
+            decision: 'merged',
+            reviewedBy: $reviewedBy,
+            reason: $reason,
+            asOf: $asOf,
+            serviceName: null,
+            targetClientServiceId: $clientServiceId
+        );
+    }
+
+    private function promote(
+        string $clientId,
+        string $candidateFingerprint,
+        string $decision,
+        int $reviewedBy,
+        ?string $reason,
+        ?CarbonImmutable $asOf,
+        ?string $serviceName,
+        ?string $targetClientServiceId
+    ): ClientServiceReconciliation {
+        $asOf ??=
+            CarbonImmutable::today();
+
+        return DB::transaction(
+            function () use (
+                $clientId,
+                $candidateFingerprint,
+                $decision,
+                $reviewedBy,
+                $reason,
+                $asOf,
+                $serviceName,
+                $targetClientServiceId
+            ): ClientServiceReconciliation {
+                $assessment =
+                    $this->resolveAssessment(
+                        clientId: $clientId,
+                        candidateFingerprint: $candidateFingerprint,
+                        asOf: $asOf
+                    );
+
+                $candidate =
+                    $assessment->candidate;
+
+                $invoiceItemIds =
+                    $candidate->invoiceItemIds;
+
+                sort(
+                    $invoiceItemIds,
+                    SORT_STRING
+                );
+
+                $items =
+                    AccountingInvoiceItem::query()
+                        ->with('invoice')
+                        ->whereIn(
+                            'id',
+                            $invoiceItemIds
+                        )
+                        ->lockForUpdate()
+                        ->get();
+
+                if (
+                    $items->count()
+                    !== count(
+                        $invoiceItemIds
+                    )
+                ) {
+                    throw ValidationException::withMessages([
+                        'candidate' => 'The commercial evidence set changed before reconciliation and must be reassessed.',
+                    ]);
+                }
+
+                $actualIds =
+                    $items
+                        ->pluck('id')
+                        ->map(
+                            fn ($id) => (string) $id
+                        )
+                        ->sort()
+                        ->values()
+                        ->all();
+
+                if (
+                    $actualIds
+                    !== $invoiceItemIds
+                ) {
+                    throw ValidationException::withMessages([
+                        'candidate' => 'The commercial evidence set no longer matches the candidate being reconciled.',
+                    ]);
+                }
+
+                foreach ($items as $item) {
+                    if (
+                        $item->invoice === null
+                        || $item->invoice->client_id
+                            !== $clientId
+                    ) {
+                        throw ValidationException::withMessages([
+                            'candidate' => 'All reviewed invoice evidence must belong to the same client.',
+                        ]);
+                    }
+
+                    if (
+                        $item->client_service_id
+                        !== null
+                    ) {
+                        throw ValidationException::withMessages([
+                            'candidate' => 'At least one reviewed invoice item is already attributed to canonical service truth.',
+                        ]);
+                    }
+                }
+
+                /*
+                 * Re-resolve after locking.
+                 *
+                 * The candidate must still exist, still be eligible,
+                 * still be ready for review, and still contain the
+                 * exact evidence set the human is acting upon.
+                 */
+                $assessment =
+                    $this->resolveAssessment(
+                        clientId: $clientId,
+                        candidateFingerprint: $candidateFingerprint,
+                        asOf: $asOf
+                    );
+
+                $candidate =
+                    $assessment->candidate;
+
+                $currentInvoiceItemIds =
+                    $candidate->invoiceItemIds;
+
+                sort(
+                    $currentInvoiceItemIds,
+                    SORT_STRING
+                );
+
+                if (
+                    $currentInvoiceItemIds
+                    !== $invoiceItemIds
+                ) {
+                    throw ValidationException::withMessages([
+                        'candidate' => 'The commercial evidence set changed during reconciliation and must be reassessed.',
+                    ]);
+                }
+
+                $evidenceFingerprint =
+                    $this->evidenceFingerprint
+                        ->forCandidate(
+                            $candidate
+                        );
+
+                if ($decision === 'confirmed') {
+                    $service =
+                        ClientService::create([
+                            'client_id' => $clientId,
+
+                            /*
+                             * Canonical service taxonomy is not yet
+                             * established. Do not overload this field
+                             * with classifier labels such as hosting
+                             * or microsoft365.
+                             */
+                            'name' => $serviceName,
+
+                            'type' => 'service',
+
+                            'status' => 'active',
+
+                            'metadata' => [
+                                'source' => 'human_commercial_reconciliation',
+
+                                'candidate_fingerprint' => $candidate
+                                    ->fingerprint,
+
+                                'evidence_fingerprint' => $evidenceFingerprint,
+
+                                'classified_service_type' => $candidate
+                                    ->serviceType,
+
+                                'service_hint' => $candidate
+                                    ->serviceHint,
+                            ],
+                        ]);
+                } else {
+                    $service =
+                        ClientService::query()
+                            ->lockForUpdate()
+                            ->findOrFail(
+                                $targetClientServiceId
+                            );
+
+                    if (
+                        $service->client_id
+                        !== $clientId
+                    ) {
+                        throw ValidationException::withMessages([
+                            'client_service' => 'The target client service must belong to the same client as the reviewed candidate.',
+                        ]);
+                    }
+                }
+
+                foreach ($items as $item) {
+                    $item->update([
+                        'client_service_id' => $service->id,
+                    ]);
+                }
+
+                $snapshot = [
+                    'as_of_date' => $assessment->asOfDate,
+
+                    'client_id' => $candidate->clientId,
+
+                    'client_name' => $candidate->clientName,
+
+                    'service_type' => $candidate->serviceType,
+
+                    'service_hint' => $candidate->serviceHint,
+
+                    'candidate_fingerprint' => $candidate->fingerprint,
+
+                    'commercial_treatment' => $candidate
+                        ->commercialTreatment,
+
+                    'evidence_count' => $candidate->evidenceCount,
+
+                    'invoice_item_ids' => $invoiceItemIds,
+
+                    'signed_observed_net' => $candidate
+                        ->signedObservedNet,
+
+                    'positive_observed_net' => $candidate
+                        ->positiveObservedNet,
+
+                    'negative_observed_net' => $candidate
+                        ->negativeObservedNet,
+
+                    'latest_observed_unit_price' => $candidate
+                        ->latestObservedUnitPrice,
+
+                    'first_observed_on' => $candidate
+                        ->firstObservedOn,
+
+                    'last_observed_on' => $candidate
+                        ->lastObservedOn,
+
+                    'cadence' => $candidate->cadence,
+
+                    'monthly_equivalent' => $candidate
+                        ->monthlyEquivalent,
+
+                    'classification_confidence' => $candidate
+                        ->classificationConfidence,
+
+                    'cadence_confidence' => $candidate
+                        ->cadenceConfidence,
+
+                    'freshness' => $assessment->freshness,
+
+                    'recurring_evidence' => $assessment
+                        ->recurringEvidence,
+
+                    'current_monthly_equivalent' => $assessment
+                        ->currentMonthlyEquivalent,
+
+                    'promotion_readiness' => $assessment
+                        ->promotionReadiness,
+
+                    'assessment_reasons' => $assessment->reasons,
+                ];
+
+                return ClientServiceReconciliation::create([
+                    'client_id' => $clientId,
+
+                    'candidate_fingerprint' => $candidate
+                        ->fingerprint,
+
+                    'evidence_fingerprint' => $evidenceFingerprint,
+
+                    'service_type' => $candidate
+                        ->serviceType,
+
+                    'service_hint' => $candidate
+                        ->serviceHint,
+
+                    'decision' => $decision,
+
+                    'client_service_id' => $service->id,
+
+                    'reviewed_by' => $reviewedBy,
+
+                    'reviewed_at' => now(),
+
+                    'reason' => $this->cleanReason(
+                        $reason
+                    ),
+
+                    'candidate_snapshot' => $snapshot,
+                ]);
+            }
         );
     }
 
@@ -164,6 +509,23 @@ final class ClientServiceReconciliationService
 
                 $candidate =
                     $assessment->candidate;
+
+                $currentInvoiceItemIds =
+                    $candidate->invoiceItemIds;
+
+                sort(
+                    $currentInvoiceItemIds,
+                    SORT_STRING
+                );
+
+                if (
+                    $currentInvoiceItemIds
+                    !== $invoiceItemIds
+                ) {
+                    throw ValidationException::withMessages([
+                        'candidate' => 'The commercial evidence set changed during review and must be reassessed.',
+                    ]);
+                }
 
                 $evidenceFingerprint =
                     $this->evidenceFingerprint

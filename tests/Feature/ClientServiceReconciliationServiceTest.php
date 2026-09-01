@@ -376,6 +376,290 @@ class ClientServiceReconciliationServiceTest extends TestCase
         );
     }
 
+    public function test_confirm_creates_canonical_service_and_attributes_exact_reviewed_evidence(): void
+    {
+        $client =
+            $this->recurringHostingClient();
+
+        $user =
+            User::factory()->create();
+
+        $asOf =
+            CarbonImmutable::parse(
+                '2026-09-01'
+            );
+
+        $assessment =
+            $this->readyAssessment(
+                $client
+            );
+
+        $review =
+            app(
+                ClientServiceReconciliationService::class
+            )->confirm(
+                clientId: $client->id,
+                candidateFingerprint: $assessment
+                    ->candidate
+                    ->fingerprint,
+                serviceName: 'Website Hosting',
+                reviewedBy: $user->id,
+                reason: 'Confirmed against current client service.',
+                asOf: $asOf
+            );
+
+        $this->assertSame(
+            'confirmed',
+            $review->decision
+        );
+
+        $this->assertNotNull(
+            $review->client_service_id
+        );
+
+        $service =
+            ClientService::findOrFail(
+                $review->client_service_id
+            );
+
+        $this->assertSame(
+            $client->id,
+            $service->client_id
+        );
+
+        $this->assertSame(
+            'Website Hosting',
+            $service->name
+        );
+
+        $this->assertSame(
+            'service',
+            $service->type
+        );
+
+        $this->assertSame(
+            'active',
+            $service->status
+        );
+
+        $this->assertSame(
+            'hosting',
+            $service->metadata[
+                'classified_service_type'
+            ]
+        );
+
+        $this->assertSame(
+            3,
+            AccountingInvoiceItem::query()
+                ->where(
+                    'client_service_id',
+                    $service->id
+                )
+                ->count()
+        );
+
+        $this->assertSame(
+            0,
+            app(
+                ClientServiceReconciliationQueueService::class
+            )
+                ->ready($asOf)
+                ->count()
+        );
+    }
+
+    public function test_merge_attributes_reviewed_evidence_to_existing_service_without_creating_another_service(): void
+    {
+        $client =
+            $this->recurringHostingClient();
+
+        $existing =
+            ClientService::create([
+                'client_id' => $client->id,
+                'name' => 'Managed Website Service',
+                'type' => 'service',
+                'status' => 'active',
+            ]);
+
+        $user =
+            User::factory()->create();
+
+        $asOf =
+            CarbonImmutable::parse(
+                '2026-09-01'
+            );
+
+        $assessment =
+            $this->readyAssessment(
+                $client
+            );
+
+        $review =
+            app(
+                ClientServiceReconciliationService::class
+            )->merge(
+                clientId: $client->id,
+                candidateFingerprint: $assessment
+                    ->candidate
+                    ->fingerprint,
+                clientServiceId: $existing->id,
+                reviewedBy: $user->id,
+                asOf: $asOf
+            );
+
+        $this->assertSame(
+            'merged',
+            $review->decision
+        );
+
+        $this->assertSame(
+            $existing->id,
+            $review->client_service_id
+        );
+
+        $this->assertSame(
+            1,
+            ClientService::count()
+        );
+
+        $this->assertSame(
+            3,
+            AccountingInvoiceItem::query()
+                ->where(
+                    'client_service_id',
+                    $existing->id
+                )
+                ->count()
+        );
+
+        $this->assertSame(
+            0,
+            app(
+                ClientServiceReconciliationQueueService::class
+            )
+                ->ready($asOf)
+                ->count()
+        );
+    }
+
+    public function test_merge_refuses_client_service_owned_by_another_client(): void
+    {
+        $client =
+            $this->recurringHostingClient();
+
+        $otherClient =
+            Client::factory()->create();
+
+        $existing =
+            ClientService::create([
+                'client_id' => $otherClient->id,
+                'name' => 'Other Client Service',
+                'type' => 'service',
+                'status' => 'active',
+            ]);
+
+        $user =
+            User::factory()->create();
+
+        $assessment =
+            $this->readyAssessment(
+                $client
+            );
+
+        try {
+            app(
+                ClientServiceReconciliationService::class
+            )->merge(
+                clientId: $client->id,
+                candidateFingerprint: $assessment
+                    ->candidate
+                    ->fingerprint,
+                clientServiceId: $existing->id,
+                reviewedBy: $user->id,
+                asOf: CarbonImmutable::parse(
+                    '2026-09-01'
+                )
+            );
+
+            $this->fail(
+                'Expected cross-client service merge to fail.'
+            );
+        } catch (
+            ValidationException $exception
+        ) {
+            $this->assertArrayHasKey(
+                'client_service',
+                $exception->errors()
+            );
+        }
+
+        $this->assertSame(
+            0,
+            ClientServiceReconciliation::count()
+        );
+
+        $this->assertSame(
+            0,
+            AccountingInvoiceItem::query()
+                ->whereNotNull(
+                    'client_service_id'
+                )
+                ->count()
+        );
+    }
+
+    public function test_confirm_requires_explicit_human_canonical_service_name(): void
+    {
+        $client =
+            $this->recurringHostingClient();
+
+        $user =
+            User::factory()->create();
+
+        $assessment =
+            $this->readyAssessment(
+                $client
+            );
+
+        try {
+            app(
+                ClientServiceReconciliationService::class
+            )->confirm(
+                clientId: $client->id,
+                candidateFingerprint: $assessment
+                    ->candidate
+                    ->fingerprint,
+                serviceName: '   ',
+                reviewedBy: $user->id,
+                asOf: CarbonImmutable::parse(
+                    '2026-09-01'
+                )
+            );
+
+            $this->fail(
+                'Expected blank canonical service name to fail.'
+            );
+        } catch (
+            ValidationException $exception
+        ) {
+            $this->assertArrayHasKey(
+                'service_name',
+                $exception->errors()
+            );
+        }
+
+        $this->assertSame(
+            0,
+            ClientService::count()
+        );
+
+        $this->assertSame(
+            0,
+            ClientServiceReconciliation::count()
+        );
+    }
+
     private function recurringHostingClient(): Client
     {
         $client =

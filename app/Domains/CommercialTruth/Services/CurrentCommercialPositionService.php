@@ -125,10 +125,10 @@ final class CurrentCommercialPositionService
             evidenceStatus: 'invoice_history_supported_not_reconciled',
 
             caveats: [
-                'Invoice-history evidence is not canonical ClientService truth.',
+                'Invoice-history-supported billing is not itself canonical contracted ClientService value.',
                 'Supported current monthly equivalent is not MRR, contracted revenue, cash, or margin.',
                 'Recently observed, stale and historical recurring evidence is excluded from supported current value.',
-                'Current candidates remain subject to human reconciliation before canonical promotion.',
+                'Unresolved candidates remain subject to human reconciliation before canonical promotion.',
             ],
 
             provenance: [

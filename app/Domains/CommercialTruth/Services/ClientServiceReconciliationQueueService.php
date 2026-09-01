@@ -89,7 +89,14 @@ final class ClientServiceReconciliationQueueService
          * New invoice evidence produces a new evidence
          * fingerprint and may surface the candidate again.
          */
-        return $latest->decision
-            === 'rejected';
+        return in_array(
+            $latest->decision,
+            [
+                'rejected',
+                'confirmed',
+                'merged',
+            ],
+            true
+        );
     }
 }
