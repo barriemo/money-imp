@@ -188,4 +188,30 @@ class CommercialServiceFingerprintTest extends TestCase
             );
         }
     }
+
+    public function test_annual_domain_description_remains_a_managed_service_candidate(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $result = $service->fingerprint(
+            'Domain Annual Renewal - example.com'
+        );
+
+        $this->assertSame(
+            'domain',
+            $result['service_type']
+        );
+
+        $this->assertSame(
+            'managed_service_candidate',
+            $result['commercial_treatment']
+        );
+
+        $this->assertSame(
+            90,
+            $result['classification_confidence']
+        );
+    }
 }

@@ -153,6 +153,7 @@ class CommercialServiceFingerprint
                     'domain name',
                     'domain registration',
                     'domain renewal',
+                    'domain ',
                     'domains ',
                     ' domain',
                 ]
