@@ -1,0 +1,431 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Domains\CommercialTruth\Services\ClientServiceCandidateService;
+use App\Models\AccountingInvoice;
+use App\Models\AccountingInvoiceItem;
+use App\Models\Client;
+use App\Models\ClientService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class ClientServiceCandidateServiceTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_recurring_service_evidence_builds_read_only_candidate(): void
+    {
+        $client = Client::factory()->create();
+
+        foreach ([
+            '2026-05-31',
+            '2026-06-30',
+            '2026-07-31',
+        ] as $date) {
+            $invoice = AccountingInvoice::create([
+                'client_id' => $client->id,
+                'invoice_number' => 'HOST-'.$date,
+                'invoice_date' => $date,
+                'status' => 'paid',
+            ]);
+
+            AccountingInvoiceItem::create([
+                'accounting_invoice_id' => $invoice->id,
+                'description' => 'Monthly Hosting, Security Updates & Backups',
+                'quantity' => 1,
+                'unit_price' => 75,
+                'net_amount' => 75,
+            ]);
+        }
+
+        $candidates = app(
+            ClientServiceCandidateService::class
+        )->forClient($client);
+
+        $this->assertCount(
+            1,
+            $candidates
+        );
+
+        $candidate = $candidates->first();
+
+        $this->assertSame(
+            'hosting',
+            $candidate->serviceType
+        );
+
+        $this->assertSame(
+            'service_candidate',
+            $candidate->commercialTreatment
+        );
+
+        $this->assertTrue(
+            $candidate->isServiceCandidate()
+        );
+
+        $this->assertSame(
+            3,
+            $candidate->evidenceCount
+        );
+
+        $this->assertSame(
+            225.0,
+            $candidate->signedObservedNet
+        );
+
+        $this->assertSame(
+            'monthly',
+            $candidate->cadence
+        );
+
+        $this->assertSame(
+            75.0,
+            $candidate->monthlyEquivalent
+        );
+
+        $this->assertSame(
+            '2026-05-31',
+            $candidate->firstObservedOn
+        );
+
+        $this->assertSame(
+            '2026-07-31',
+            $candidate->lastObservedOn
+        );
+
+        $this->assertSame(
+            0,
+            ClientService::count()
+        );
+    }
+
+    public function test_project_candidates_do_not_collapse_into_one_fake_service(): void
+    {
+        $client = Client::factory()->create();
+
+        $invoice = AccountingInvoice::create([
+            'client_id' => $client->id,
+            'invoice_number' => 'PROJECTS-1',
+            'invoice_date' => '2026-07-31',
+            'status' => 'paid',
+        ]);
+
+        foreach ([
+            [
+                'description' => 'V7 Rolex Development Work',
+                'net' => 10000,
+            ],
+            [
+                'description' => 'Website Design & Development',
+                'net' => 5000,
+            ],
+        ] as $row) {
+            AccountingInvoiceItem::create([
+                'accounting_invoice_id' => $invoice->id,
+                'description' => $row['description'],
+                'quantity' => 1,
+                'unit_price' => $row['net'],
+                'net_amount' => $row['net'],
+            ]);
+        }
+
+        $candidates = app(
+            ClientServiceCandidateService::class
+        )->forClient($client);
+
+        $projects = $candidates->filter(
+            fn ($candidate) => $candidate->commercialTreatment
+                === 'project_candidate'
+        );
+
+        $this->assertCount(
+            2,
+            $projects
+        );
+
+        $this->assertTrue(
+            $projects->every(
+                fn ($candidate) => ! $candidate
+                    ->isServiceCandidate()
+            )
+        );
+
+        $this->assertSame(
+            0,
+            ClientService::count()
+        );
+    }
+
+    public function test_unknown_descriptions_remain_separate_evidence_groups(): void
+    {
+        $client = Client::factory()->create();
+
+        $invoice = AccountingInvoice::create([
+            'client_id' => $client->id,
+            'invoice_number' => 'UNKNOWN-1',
+            'invoice_date' => '2026-07-31',
+            'status' => 'paid',
+        ]);
+
+        foreach ([
+            'Bespoke unknown alpha',
+            'Bespoke unknown beta',
+        ] as $description) {
+            AccountingInvoiceItem::create([
+                'accounting_invoice_id' => $invoice->id,
+                'description' => $description,
+                'quantity' => 1,
+                'unit_price' => 100,
+                'net_amount' => 100,
+            ]);
+        }
+
+        $unknown = app(
+            ClientServiceCandidateService::class
+        )
+            ->forClient($client)
+            ->filter(
+                fn ($candidate) => $candidate->commercialTreatment
+                    === 'unknown'
+            );
+
+        $this->assertCount(
+            2,
+            $unknown
+        );
+    }
+
+    public function test_negative_commercial_adjustment_keeps_its_sign(): void
+    {
+        $client = Client::factory()->create();
+
+        $invoice = AccountingInvoice::create([
+            'client_id' => $client->id,
+            'invoice_number' => 'ADJUSTMENT-1',
+            'invoice_date' => '2026-07-31',
+            'status' => 'paid',
+        ]);
+
+        AccountingInvoiceItem::create([
+            'accounting_invoice_id' => $invoice->id,
+            'description' => 'Discount',
+            'quantity' => 1,
+            'unit_price' => -475,
+            'net_amount' => -475,
+        ]);
+
+        $candidate = app(
+            ClientServiceCandidateService::class
+        )
+            ->forClient($client)
+            ->first();
+
+        $this->assertSame(
+            -475.0,
+            $candidate->signedObservedNet
+        );
+
+        $this->assertSame(
+            0.0,
+            $candidate->positiveObservedNet
+        );
+
+        $this->assertSame(
+            -475.0,
+            $candidate->negativeObservedNet
+        );
+
+        $this->assertFalse(
+            $candidate->isServiceCandidate()
+        );
+    }
+
+    public function test_pass_through_spend_is_not_eligible_for_client_service(): void
+    {
+        $client = Client::factory()->create();
+
+        $invoice = AccountingInvoice::create([
+            'client_id' => $client->id,
+            'invoice_number' => 'MEDIA-1',
+            'invoice_date' => '2026-07-31',
+            'status' => 'paid',
+        ]);
+
+        AccountingInvoiceItem::create([
+            'accounting_invoice_id' => $invoice->id,
+            'description' => 'PPC - Advertising spend Budget - Google',
+            'quantity' => 1,
+            'unit_price' => 500,
+            'net_amount' => 500,
+        ]);
+
+        $candidate = app(
+            ClientServiceCandidateService::class
+        )
+            ->forClient($client)
+            ->first();
+
+        $this->assertSame(
+            'media_spend',
+            $candidate->serviceType
+        );
+
+        $this->assertSame(
+            'pass_through_candidate',
+            $candidate->commercialTreatment
+        );
+
+        $this->assertFalse(
+            $candidate->isServiceCandidate()
+        );
+    }
+
+    public function test_multiple_lines_on_same_date_do_not_distort_cadence(): void
+    {
+        $client = Client::factory()->create();
+
+        foreach ([
+            [
+                'date' => '2026-05-31',
+                'lines' => 2,
+            ],
+            [
+                'date' => '2026-06-30',
+                'lines' => 1,
+            ],
+            [
+                'date' => '2026-07-31',
+                'lines' => 1,
+            ],
+        ] as $period) {
+            $invoice = AccountingInvoice::create([
+                'client_id' => $client->id,
+                'invoice_number' => 'HOST-'.$period['date'],
+                'invoice_date' => $period['date'],
+                'status' => 'paid',
+            ]);
+
+            for (
+                $line = 0;
+                $line < $period['lines'];
+                $line++
+            ) {
+                AccountingInvoiceItem::create([
+                    'accounting_invoice_id' => $invoice->id,
+                    'description' => 'Monthly Hosting',
+                    'quantity' => 1,
+                    'unit_price' => 75,
+                    'net_amount' => 75,
+                ]);
+            }
+        }
+
+        $candidate = app(
+            ClientServiceCandidateService::class
+        )
+            ->forClient($client)
+            ->first();
+
+        $this->assertSame(
+            4,
+            $candidate->evidenceCount
+        );
+
+        $this->assertSame(
+            'monthly',
+            $candidate->cadence
+        );
+
+        $this->assertSame(
+            75.0,
+            $candidate->monthlyEquivalent
+        );
+    }
+
+    public function test_candidate_aggregation_conserves_invoice_evidence_and_signed_value(): void
+    {
+        $firstClient = Client::factory()->create();
+        $secondClient = Client::factory()->create();
+
+        $firstInvoice = AccountingInvoice::create([
+            'client_id' => $firstClient->id,
+            'invoice_number' => 'CONSERVE-1',
+            'invoice_date' => '2026-07-31',
+            'status' => 'paid',
+        ]);
+
+        foreach ([
+            [
+                'description' => 'Monthly Hosting',
+                'net' => 75,
+            ],
+            [
+                'description' => 'Monthly Hosting',
+                'net' => 75,
+            ],
+            [
+                'description' => 'Advertising Spend',
+                'net' => 500,
+            ],
+            [
+                'description' => 'Discount',
+                'net' => -100,
+            ],
+        ] as $row) {
+            AccountingInvoiceItem::create([
+                'accounting_invoice_id' => $firstInvoice->id,
+                'description' => $row['description'],
+                'quantity' => 1,
+                'unit_price' => $row['net'],
+                'net_amount' => $row['net'],
+            ]);
+        }
+
+        $secondInvoice = AccountingInvoice::create([
+            'client_id' => $secondClient->id,
+            'invoice_number' => 'CONSERVE-2',
+            'invoice_date' => '2026-08-31',
+            'status' => 'paid',
+        ]);
+
+        AccountingInvoiceItem::create([
+            'accounting_invoice_id' => $secondInvoice->id,
+            'description' => 'Website Design & Development',
+            'quantity' => 1,
+            'unit_price' => 1000,
+            'net_amount' => 1000,
+        ]);
+
+        $candidates = app(
+            ClientServiceCandidateService::class
+        )->all();
+
+        $this->assertSame(
+            AccountingInvoiceItem::count(),
+            (int) $candidates->sum(
+                'evidenceCount'
+            )
+        );
+
+        $this->assertSame(
+            round(
+                (float) AccountingInvoiceItem::sum(
+                    'net_amount'
+                ),
+                2
+            ),
+            round(
+                (float) $candidates->sum(
+                    'signedObservedNet'
+                ),
+                2
+            )
+        );
+
+        $this->assertSame(
+            0,
+            ClientService::count()
+        );
+    }
+}
