@@ -87,4 +87,105 @@ class CommercialServiceFingerprintTest extends TestCase
             $june['fingerprint']
         );
     }
+
+    public function test_advertising_spend_is_not_treated_as_ppc_management(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $result = $service->fingerprint(
+            'PPC - Advertising spend Budget - Google'
+        );
+
+        $this->assertSame(
+            'media_spend',
+            $result['service_type']
+        );
+
+        $this->assertSame(
+            'pass_through_candidate',
+            $result['commercial_treatment']
+        );
+
+        $this->assertSame(
+            95,
+            $result['classification_confidence']
+        );
+    }
+
+    public function test_ppc_management_remains_service_candidate(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $result = $service->fingerprint(
+            'Paid Management - PPC'
+        );
+
+        $this->assertSame(
+            'ppc_management',
+            $result['service_type']
+        );
+
+        $this->assertSame(
+            'service_candidate',
+            $result['commercial_treatment']
+        );
+    }
+
+    public function test_development_work_is_only_a_project_candidate(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $result = $service->fingerprint(
+            'V7 Rolex Development Work'
+        );
+
+        $this->assertSame(
+            'development',
+            $result['service_type']
+        );
+
+        $this->assertSame(
+            'project_candidate',
+            $result['commercial_treatment']
+        );
+    }
+
+    public function test_common_managed_service_lines_are_classified(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $examples = [
+            'Monthly Email Licenses Office 365' => 'microsoft365',
+            'Google Workspace Business Annual Renewal' => 'google_workspace',
+            'Mailchimp' => 'email_platform',
+            'Nitro CDN' => 'cdn',
+            'Domain Name Annual Renewal' => 'domain',
+        ];
+
+        foreach ($examples as $description => $expected) {
+            $result = $service->fingerprint(
+                $description
+            );
+
+            $this->assertSame(
+                $expected,
+                $result['service_type'],
+                $description
+            );
+
+            $this->assertSame(
+                'managed_service_candidate',
+                $result['commercial_treatment'],
+                $description
+            );
+        }
+    }
 }
