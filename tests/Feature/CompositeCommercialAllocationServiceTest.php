@@ -92,10 +92,15 @@ class CompositeCommercialAllocationServiceTest extends TestCase
         );
 
         /*
-         * Stage 2A does not yet feed allocation-backed evidence
-         * into canonical observed billing.
+         * Stage 2B now allows this approved allocation to become
+         * canonical observed billing evidence without converting
+         * the source item into legacy direct attribution.
+         *
+         * One old observation is still only one-off historical
+         * evidence, so it does not establish current recurring
+         * monthly value.
          */
-        $this->assertNull(
+        $truth =
             app(
                 CanonicalServiceObservedBillingService::class
             )->forService(
@@ -103,7 +108,24 @@ class CompositeCommercialAllocationServiceTest extends TestCase
                 CarbonImmutable::parse(
                     '2026-09-02'
                 )
-            )
+            );
+
+        $this->assertNotNull(
+            $truth
+        );
+
+        $this->assertSame(
+            'one_off',
+            $truth->cadence
+        );
+
+        $this->assertSame(
+            1500.0,
+            $truth->signedObservedNet
+        );
+
+        $this->assertNull(
+            $truth->currentMonthlyEquivalent
         );
     }
 

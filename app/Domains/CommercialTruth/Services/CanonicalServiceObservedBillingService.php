@@ -8,14 +8,13 @@ use App\Models\Client;
 use App\Models\ClientService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 final class CanonicalServiceObservedBillingService
 {
     public function __construct(
         private readonly BillingCadenceEngine $cadence,
         private readonly BillingEvidenceAssessmentService $billingEvidence,
-        private readonly CanonicalBillingEvidenceStatusPolicy $statusPolicy,
+        private readonly CanonicalBillingObservationService $observations,
     ) {}
 
     /**
@@ -61,83 +60,11 @@ final class CanonicalServiceObservedBillingService
             CarbonImmutable::today();
 
         $observations =
-            DB::table(
-                'accounting_invoice_items as items'
-            )
-                ->join(
-                    'accounting_invoices as invoices',
-                    'invoices.id',
-                    '=',
-                    'items.accounting_invoice_id'
-                )
-                ->join(
-                    'client_services as services',
-                    'services.id',
-                    '=',
-                    'items.client_service_id'
-                )
-                ->join(
-                    'clients',
-                    'clients.id',
-                    '=',
-                    'services.client_id'
-                )
-                ->whereNotNull(
-                    'items.client_service_id'
-                )
-                ->whereNull(
-                    'services.deleted_at'
-                )
-                /*
-                 * Canonical observed billing is evidence of billing
-                 * that was actually issued.
-                 *
-                 * Paid and overdue invoices both establish issued
-                 * commercial billing. Draft, written-off, refunded
-                 * and unknown statuses do not.
-                 */
-                ->whereIn(
-                    'invoices.status',
-                    $this->statusPolicy
-                        ->admissibleStatuses()
-                )
-                ->when(
-                    $clientId,
-                    fn ($query) => $query->where(
-                        'services.client_id',
-                        $clientId
-                    )
-                )
-                ->when(
-                    $clientServiceId,
-                    fn ($query) => $query->where(
-                        'services.id',
-                        $clientServiceId
-                    )
-                )
-                ->orderBy(
-                    'invoices.invoice_date'
-                )
-                ->orderBy(
-                    'items.created_at'
-                )
-                ->orderBy(
-                    'items.id'
-                )
-                ->select([
-                    'items.id as invoice_item_id',
-                    'items.quantity',
-                    'items.unit_price',
-                    'items.net_amount',
-                    'items.created_at',
-                    'invoices.invoice_date',
-                    'services.id as client_service_id',
-                    'services.client_id',
-                    'services.name as service_name',
-                    'services.status as service_status',
-                    'clients.name as client_name',
-                ])
-                ->get();
+            $this->observations
+                ->all(
+                    clientId: $clientId,
+                    clientServiceId: $clientServiceId
+                );
 
         return $observations
             ->groupBy(

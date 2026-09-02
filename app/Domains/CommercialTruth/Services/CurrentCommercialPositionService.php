@@ -216,7 +216,7 @@ final class CurrentCommercialPositionService
 
             caveats: [
                 'Observed current monthly equivalent is evidence-derived; it is not MRR, contracted revenue, cash, or margin.',
-                'Canonical-service-backed observed billing uses only paid or overdue invoice items explicitly attributed to active ClientServices; draft, written-off, refunded and unknown invoice statuses are excluded.',
+                'Canonical-service-backed observed billing uses only paid or overdue invoice evidence human-attributed either directly to a ClientService or through a current conserved composite allocation; draft, written-off, refunded, unknown and stale allocation evidence are excluded.',
                 'Unattributed evidence on an existing canonical service is excluded from recurring value until attribution is human-approved.',
                 'Recently observed, stale and historical unresolved recurring evidence is excluded from current observed value.',
                 'Contracted recurring value remains unknown until BillingRule truth is explicitly reconciled.',
@@ -233,7 +233,9 @@ final class CurrentCommercialPositionService
 
                 'freshness_assessment' => 'ClientServiceCandidateAssessmentService',
                 'canonical_observed_billing' => 'CanonicalServiceObservedBillingService',
+                'canonical_billing_observations' => 'CanonicalBillingObservationService',
                 'canonical_billing_status_policy' => 'CanonicalBillingEvidenceStatusPolicy',
+                'composite_allocation_ledger' => 'CommercialEvidenceAllocationSet',
                 'attribution_review' => 'ClientServiceAttributionReviewQueueService',
             ],
             canonicalActiveServiceCount: $canonicalActiveServiceCount,
