@@ -128,7 +128,7 @@ final class ClientServiceCandidateAssessmentService
         if (
             $candidate->isCompositeCandidate()
         ) {
-            return 'needs_decomposition';
+            return 'needs_commercial_review';
         }
 
         if (
@@ -181,7 +181,7 @@ final class ClientServiceCandidateAssessmentService
             $candidate->isCompositeCandidate()
         ) {
             $reasons[] = sprintf(
-                'Composite commercial evidence spans %d material component families: %s. Human decomposition is required before canonical promotion.',
+                'Composite commercial evidence spans %d detected activity families: %s. Human commercial review is required to establish whether this is one bundled service or requires monetary decomposition before canonical promotion.',
                 count(
                     $candidate
                         ->commercialComponents

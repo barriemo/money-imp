@@ -505,7 +505,7 @@ class CurrentCommercialPositionServiceTest extends TestCase
         );
     }
 
-    public function test_source_item_atomic_composite_evidence_is_excluded_from_supported_current_value_until_decomposed(): void
+    public function test_source_item_atomic_composite_evidence_is_excluded_from_supported_current_value_until_reviewed(): void
     {
         $client =
             Client::factory()->create();
@@ -550,7 +550,7 @@ class CurrentCommercialPositionServiceTest extends TestCase
          *
          * Even identical monthly descriptions remain independent
          * one-observation candidates because each source invoice
-         * item may require a different human decomposition.
+         * item may require a different human commercial review.
          */
         $this->assertCount(
             3,
@@ -586,7 +586,7 @@ class CurrentCommercialPositionServiceTest extends TestCase
             $assessments->every(
                 fn ($assessment) => $assessment
                     ->promotionReadiness
-                    === 'needs_decomposition'
+                    === 'needs_commercial_review'
             )
         );
 

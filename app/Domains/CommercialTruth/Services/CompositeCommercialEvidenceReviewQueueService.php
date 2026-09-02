@@ -19,6 +19,10 @@ final class CompositeCommercialEvidenceReviewQueueService
      * It is source evidence spanning multiple material
      * commercial activities and must not be promoted wholesale
      * into a canonical service or allocated without human
+     * commercial interpretation.
+     *
+     * Human review must establish whether the evidence represents
+     * one bundled service or genuinely requires monetary
      * decomposition.
      *
      * @return Collection<int, ClientServiceCandidateAssessment>
@@ -40,7 +44,7 @@ final class CompositeCommercialEvidenceReviewQueueService
                     ->isCompositeCandidate()
                     && $assessment
                         ->promotionReadiness
-                        === 'needs_decomposition'
+                        === 'needs_commercial_review'
             )
             ->filter(
                 fn (

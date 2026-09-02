@@ -862,7 +862,7 @@
 
                 <div class="badges">
                     <span class="badge recently_observed">
-                        Needs decomposition
+                        Needs commercial review
                     </span>
 
                     <span class="badge">
@@ -885,14 +885,14 @@
                 </div>
 
                 <div class="truth-boundary">
-                    This source evidence spans multiple material
-                    commercial activities. The full invoice value
-                    cannot truthfully be assigned to any one
-                    service, project or component. It contributes
-                    no current recurring commercial value and
-                    cannot create, merge or update canonical truth
-                    until a human decomposition establishes the
-                    component allocation.
+                    This source evidence names multiple commercial
+                    activities. It may represent one bundled service
+                    or it may require monetary decomposition. The
+                    classifier cannot decide that commercial structure
+                    safely. It is excluded from supported current
+                    monthly-equivalent billing and cannot create,
+                    merge or update canonical truth until a human
+                    commercial review resolves the evidence.
                 </div>
 
                 <details>
@@ -964,7 +964,7 @@
             <div class="empty">
                 <strong>
                     No composite commercial evidence currently
-                    requires human decomposition.
+                    requires human commercial review.
                 </strong>
             </div>
         @endforelse

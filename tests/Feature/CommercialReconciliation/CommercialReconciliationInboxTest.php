@@ -79,7 +79,7 @@ class CommercialReconciliationInboxTest extends TestCase
             );
     }
 
-    public function test_composite_evidence_has_separate_read_only_decomposition_inbox(): void
+    public function test_composite_evidence_has_separate_read_only_commercial_review_inbox(): void
     {
         $user =
             User::factory()->create();
@@ -119,7 +119,7 @@ class CommercialReconciliationInboxTest extends TestCase
                 'Composite commercial evidence'
             )
             ->assertSee(
-                'Needs decomposition'
+                'Needs commercial review'
             )
             ->assertSee(
                 '£4,000.00'
@@ -143,10 +143,13 @@ class CommercialReconciliationInboxTest extends TestCase
                 'Review exact composite invoice evidence'
             )
             ->assertSee(
-                'cannot truthfully be assigned'
+                'one bundled service'
             )
             ->assertSee(
-                'no current recurring commercial value'
+                'excluded from supported current'
+            )
+            ->assertSee(
+                'monthly-equivalent billing'
             )
             ->assertSee(
                 'Read-only review surface'

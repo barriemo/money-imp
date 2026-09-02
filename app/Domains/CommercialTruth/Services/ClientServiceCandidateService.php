@@ -260,7 +260,7 @@ final class ClientServiceCandidateService
          * Composite evidence is source-item atomic.
          *
          * Two invoice lines with identical wording may later
-         * require different human decompositions. They must not
+         * require different human commercial interpretations. They must not
          * silently collapse into one candidate merely because
          * their descriptions or component families match.
          */

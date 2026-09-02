@@ -16,7 +16,7 @@ class CompositeCommercialEvidenceReviewQueueServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_composite_evidence_is_visible_only_in_decomposition_queue(): void
+    public function test_composite_evidence_is_visible_only_in_composite_review_queue(): void
     {
         $client =
             Client::factory()->create([
@@ -67,7 +67,7 @@ class CompositeCommercialEvidenceReviewQueueServiceTest extends TestCase
         );
 
         $this->assertSame(
-            'needs_decomposition',
+            'needs_commercial_review',
             $assessment
                 ->promotionReadiness
         );

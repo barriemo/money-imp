@@ -227,7 +227,7 @@ class ClientServiceCandidateAssessmentServiceTest extends TestCase
         );
     }
 
-    public function test_composite_invoice_evidence_requires_decomposition_and_has_no_current_service_value(): void
+    public function test_composite_invoice_evidence_requires_commercial_review_and_has_no_supported_current_service_value(): void
     {
         $client =
             Client::factory()->create();
@@ -291,7 +291,7 @@ class ClientServiceCandidateAssessmentServiceTest extends TestCase
         );
 
         $this->assertSame(
-            'needs_decomposition',
+            'needs_commercial_review',
             $assessment
                 ->promotionReadiness
         );
@@ -302,11 +302,80 @@ class ClientServiceCandidateAssessmentServiceTest extends TestCase
         );
 
         $this->assertStringContainsString(
-            'Human decomposition is required',
+            'Human commercial review is required',
             implode(
                 ' ',
                 $assessment->reasons
             )
+        );
+    }
+
+    public function test_composite_retainer_package_requires_review_without_assuming_monetary_decomposition(): void
+    {
+        $client =
+            Client::factory()->create();
+
+        $this->invoiceItem(
+            client: $client,
+            date: '2025-01-27',
+            description: 'Retainer, 3 days per month inc web dev , Sm & Marketing support (Reduced Day Rate BM approved)',
+            amount: 1500,
+        );
+
+        $assessment =
+            app(
+                ClientServiceCandidateAssessmentService::class
+            )
+                ->forClient(
+                    $client,
+                    CarbonImmutable::parse(
+                        '2025-02-01'
+                    )
+                )
+                ->first();
+
+        $this->assertTrue(
+            $assessment
+                ->candidate
+                ->isCompositeCandidate()
+        );
+
+        $this->assertSame(
+            [
+                'retainer',
+                'support',
+                'development',
+            ],
+            $assessment
+                ->candidate
+                ->commercialComponents
+        );
+
+        $this->assertSame(
+            'needs_commercial_review',
+            $assessment
+                ->promotionReadiness
+        );
+
+        $this->assertNull(
+            $assessment
+                ->currentMonthlyEquivalent
+        );
+
+        $reasons =
+            implode(
+                ' ',
+                $assessment->reasons
+            );
+
+        $this->assertStringContainsString(
+            'one bundled service',
+            $reasons
+        );
+
+        $this->assertStringContainsString(
+            'monetary decomposition',
+            $reasons
         );
     }
 

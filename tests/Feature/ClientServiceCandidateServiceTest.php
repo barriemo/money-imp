@@ -163,7 +163,7 @@ class ClientServiceCandidateServiceTest extends TestCase
 
         /*
          * Classification identity may match, but source evidence
-         * must remain separate for future human decomposition.
+         * must remain separate for future human commercial review.
          */
         $this->assertSame(
             $composite[0]->fingerprint,
