@@ -2,6 +2,7 @@
 
 namespace App\Domains\CommercialTruth\Services;
 
+use App\Domains\CommercialTruth\CommercialAgreementTruthService;
 use App\Domains\CommercialTruth\DTO\ClientServiceCandidateAssessment;
 use App\Domains\CommercialTruth\DTO\CurrentCommercialPosition;
 use App\Models\AccountingInvoiceItem;
@@ -17,6 +18,7 @@ final class CurrentCommercialPositionService
         private readonly ClientServiceReconciliationQueueService $reviewQueue,
         private readonly CanonicalServiceObservedBillingService $canonicalObservedBilling,
         private readonly ClientServiceAttributionReviewQueueService $attributionReviewQueue,
+        private readonly CommercialAgreementTruthService $contractedTruth,
     ) {}
 
     public function position(
@@ -120,6 +122,10 @@ final class CurrentCommercialPositionService
                 )
                 ->count();
 
+        $contracted =
+            $this->contractedTruth
+                ->summary();
+
         /*
          * BillingRule has a soft-delete column but currently
          * does not use the SoftDeletes trait, so explicitly
@@ -135,11 +141,6 @@ final class CurrentCommercialPositionService
                     'active'
                 )
                 ->count();
-
-        $contractedValueStatus =
-            $billingRuleCount === 0
-                ? 'not_established'
-                : 'billing_rules_present_not_reconciled';
 
         $evidenceStatus =
             $this->evidenceStatus(
@@ -219,7 +220,7 @@ final class CurrentCommercialPositionService
                 'Canonical-service-backed observed billing uses only paid or overdue invoice evidence human-attributed either directly to a ClientService or through a current conserved composite allocation; draft, written-off, refunded, unknown and stale allocation evidence are excluded.',
                 'Unattributed evidence on an existing canonical service is excluded from recurring value until attribution is human-approved.',
                 'Recently observed, stale and historical unresolved recurring evidence is excluded from current observed value.',
-                'Contracted recurring value remains unknown until BillingRule truth is explicitly reconciled.',
+                'Contracted recurring value remains unknown until persisted commercial agreement truth is explicitly confirmed; BillingRule is operational invoicing configuration and is not contractual evidence.',
             ],
 
             provenance: [
@@ -236,6 +237,8 @@ final class CurrentCommercialPositionService
                 'canonical_billing_observations' => 'CanonicalBillingObservationService',
                 'canonical_billing_status_policy' => 'CanonicalBillingEvidenceStatusPolicy',
                 'composite_allocation_ledger' => 'CommercialEvidenceAllocationSet',
+                'contracted_commercial_truth' => 'CommercialAgreementTruthService',
+                'billing_rule_role' => 'operational_invoicing_configuration_only',
                 'attribution_review' => 'ClientServiceAttributionReviewQueueService',
             ],
             canonicalActiveServiceCount: $canonicalActiveServiceCount,
@@ -248,8 +251,12 @@ final class CurrentCommercialPositionService
                 ->ready()
                 ->count(),
             billingRuleCount: $billingRuleCount,
-            contractedMonthlyValue: null,
-            contractedValueStatus: $contractedValueStatus,
+            contractedMonthlyValue: $contracted[
+                'contracted_monthly_value'
+            ],
+            contractedValueStatus: $contracted[
+                'contracted_value_status'
+            ],
         );
     }
 

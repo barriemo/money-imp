@@ -6,6 +6,8 @@ use App\Domains\CommercialTruth\CommercialAgreementInferenceService;
 use App\Models\AccountingInvoice;
 use App\Models\AccountingInvoiceItem;
 use App\Models\Client;
+use App\Models\CommercialAgreement;
+use App\Models\CommercialAgreementEvidence;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -13,7 +15,7 @@ class CommercialAgreementInferenceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_recurring_hosting_invoices_create_commercial_agreement(): void
+    public function test_hosting_invoice_history_returns_read_only_agreement_candidate(): void
     {
         $client =
             Client::factory()->create();
@@ -31,7 +33,7 @@ class CommercialAgreementInferenceTest extends TestCase
 
                     'invoice_date' => $date,
 
-                    'status' => 'sent',
+                    'status' => 'paid',
                 ]);
 
             AccountingInvoiceItem::create([
@@ -47,36 +49,71 @@ class CommercialAgreementInferenceTest extends TestCase
             ]);
         }
 
-        $agreements = app(
-            CommercialAgreementInferenceService::class
-        )->inferHosting();
+        $this->assertSame(
+            0,
+            CommercialAgreement::count()
+        );
+
+        $this->assertSame(
+            0,
+            CommercialAgreementEvidence::count()
+        );
+
+        $candidates =
+            app(
+                CommercialAgreementInferenceService::class
+            )->inferHosting();
 
         $this->assertCount(
             1,
-            $agreements
+            $candidates
         );
 
-        $agreement =
-            $agreements->first();
+        $candidate =
+            $candidates->first();
+
+        $this->assertSame(
+            $client->id,
+            $candidate->clientId
+        );
 
         $this->assertSame(
             'hosting',
-            $agreement->service_type
+            $candidate->serviceType
         );
 
         $this->assertSame(
             'monthly',
-            $agreement->cadence
+            $candidate->cadence
         );
 
         $this->assertSame(
-            '75.00',
-            $agreement->monthly_equivalent
+            75.0,
+            $candidate->monthlyEquivalent
+        );
+
+        $this->assertSame(
+            'invoice_history',
+            $candidate->source
         );
 
         $this->assertCount(
             3,
-            $agreement->evidence
+            $candidate->evidence
+        );
+
+        /*
+         * Critical contract:
+         * inference never persists agreement truth.
+         */
+        $this->assertSame(
+            0,
+            CommercialAgreement::count()
+        );
+
+        $this->assertSame(
+            0,
+            CommercialAgreementEvidence::count()
         );
     }
 }

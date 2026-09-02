@@ -106,8 +106,14 @@ class ExecutiveHealthReasoner
 
         $recurringMonthly =
             (float) (
-                $commercial['recurring_monthly_equivalent']
+                $commercial['contracted_monthly_value']
                 ?? 0
+            );
+
+        $contractedValueStatus =
+            (string) (
+                $commercial['contracted_value_status']
+                ?? 'not_established'
             );
 
         $managedMonthlyRevenue =
@@ -158,11 +164,19 @@ class ExecutiveHealthReasoner
         }
 
         if (
-            ($commercial['candidate_count'] ?? 0)
-            > 0
+            $contractedValueStatus
+            !== 'reconciled'
         ) {
             $missingEvidence[] =
-                'Some commercial agreements are inferred rather than confirmed.';
+                match (
+                    $contractedValueStatus
+                ) {
+                    'candidates_not_confirmed' => 'Possible commercial agreements exist, but none is confirmed as contracted truth.',
+
+                    'partially_reconciled' => 'Some contracted commercial terms are confirmed while other agreement candidates remain unresolved.',
+
+                    default => 'Contracted commercial terms are not yet established.',
+                };
         }
 
         $gaps =

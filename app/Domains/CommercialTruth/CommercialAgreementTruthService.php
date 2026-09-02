@@ -2,41 +2,64 @@
 
 namespace App\Domains\CommercialTruth;
 
+use App\Models\CommercialAgreement;
+
 class CommercialAgreementTruthService
 {
-    public function __construct(
-        private CommercialAgreementInferenceService $inference
-    ) {}
-
+    /**
+     * Summarise persisted commercial agreement assertions.
+     *
+     * This method is deliberately read only.
+     *
+     * Invoice-derived candidates are not contracted truth and are
+     * never created merely because this summary was requested.
+     */
     public function summary(): array
     {
         $agreements =
-            $this->inference
-                ->inferHosting();
+            CommercialAgreement::query()
+                ->with('evidence')
+                ->get();
+
+        $confirmed =
+            $agreements
+                ->where(
+                    'status',
+                    'confirmed'
+                )
+                ->values();
+
+        $candidates =
+            $agreements
+                ->where(
+                    'status',
+                    'candidate'
+                )
+                ->values();
 
         $monthly =
-            $agreements
+            $confirmed
                 ->where(
                     'cadence',
                     'monthly'
                 );
 
         $annual =
-            $agreements
+            $confirmed
                 ->where(
                     'cadence',
                     'annual'
                 );
 
         $oneOff =
-            $agreements
+            $confirmed
                 ->where(
                     'cadence',
                     'one_off'
                 );
 
         $unknown =
-            $agreements
+            $confirmed
                 ->where(
                     'cadence',
                     'unknown'
@@ -44,7 +67,7 @@ class CommercialAgreementTruthService
 
         $recurringMonthlyEquivalent =
             round(
-                (float) $agreements
+                (float) $confirmed
                     ->whereIn(
                         'cadence',
                         [
@@ -58,8 +81,22 @@ class CommercialAgreementTruthService
                 2
             );
 
+        $contractedValueStatus =
+            match (true) {
+                $confirmed->isEmpty()
+                    && $candidates->isEmpty() => 'not_established',
+
+                $confirmed->isEmpty() => 'candidates_not_confirmed',
+
+                $candidates->isNotEmpty() => 'partially_reconciled',
+
+                default => 'reconciled',
+            };
+
         return [
             'agreements' => $agreements,
+
+            'confirmed_agreements' => $confirmed,
 
             'agreement_count' => $agreements->count(),
 
@@ -79,19 +116,15 @@ class CommercialAgreementTruthService
                 2
             ),
 
-            'candidate_count' => $agreements
-                ->where(
-                    'status',
-                    'candidate'
-                )
-                ->count(),
+            'candidate_count' => $candidates->count(),
 
-            'confirmed_count' => $agreements
-                ->where(
-                    'status',
-                    'confirmed'
-                )
-                ->count(),
+            'confirmed_count' => $confirmed->count(),
+
+            'contracted_monthly_value' => $confirmed->isEmpty()
+                    ? null
+                    : $recurringMonthlyEquivalent,
+
+            'contracted_value_status' => $contractedValueStatus,
         ];
     }
 }

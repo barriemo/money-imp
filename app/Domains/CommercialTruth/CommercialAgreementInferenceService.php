@@ -2,8 +2,8 @@
 
 namespace App\Domains\CommercialTruth;
 
-use App\Models\CommercialAgreement;
-use App\Models\CommercialAgreementEvidence;
+use App\Domains\CommercialTruth\DTO\CommercialAgreementCandidate;
+use App\Domains\CommercialTruth\Services\CanonicalBillingEvidenceStatusPolicy;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -11,9 +11,20 @@ use Illuminate\Support\Str;
 class CommercialAgreementInferenceService
 {
     public function __construct(
-        private BillingCadenceEngine $cadence
+        private BillingCadenceEngine $cadence,
+        private CanonicalBillingEvidenceStatusPolicy $statusPolicy,
     ) {}
 
+    /**
+     * Invoice history may suggest commercial agreement candidates.
+     *
+     * This service is deliberately read only.
+     *
+     * An inferred billing pattern is evidence for human review;
+     * it is never itself contracted commercial truth.
+     *
+     * @return Collection<int, CommercialAgreementCandidate>
+     */
     public function inferHosting(): Collection
     {
         $items = DB::table(
@@ -30,12 +41,19 @@ class CommercialAgreementInferenceService
                 'like',
                 '%hosting%'
             )
+            ->whereIn(
+                'invoices.status',
+                $this->statusPolicy
+                    ->admissibleStatuses()
+            )
             ->select([
                 'items.id as invoice_item_id',
                 'items.description',
                 'items.unit_price',
+                'items.net_amount',
                 'invoices.client_id',
                 'invoices.invoice_date',
+                'invoices.status as invoice_status',
             ])
             ->get();
 
@@ -50,7 +68,7 @@ class CommercialAgreementInferenceService
             ->map(
                 function (
                     Collection $observations
-                ): CommercialAgreement {
+                ): CommercialAgreementCandidate {
                     $first =
                         $observations->first();
 
@@ -65,68 +83,65 @@ class CommercialAgreementInferenceService
                                 $observations
                             );
 
-                    $agreement =
-                        CommercialAgreement::updateOrCreate(
-                            [
-                                'client_id' => $first->client_id,
+                    return new CommercialAgreementCandidate(
+                        clientId: (string) $first->client_id,
 
-                                'service_type' => 'hosting',
+                        serviceType: 'hosting',
 
-                                'service_key' => $serviceKey,
+                        serviceKey: $serviceKey,
+
+                        cadence: $cadence['cadence'],
+
+                        observedValue: round(
+                            (float) $cadence[
+                                'observed_value'
                             ],
-                            [
-                                'cadence' => $cadence['cadence'],
+                            2
+                        ),
 
-                                'status' => 'candidate',
-
-                                'observed_value' => $cadence[
-                                        'observed_value'
-                                    ],
-
-                                'monthly_equivalent' => $cadence[
-                                        'monthly_equivalent'
-                                    ],
-
-                                'confidence' => $cadence[
-                                        'confidence'
-                                    ],
-
-                                'source' => 'invoice_history',
-
-                                'reason' => 'Commercial agreement inferred from hosting invoice cadence.',
-
-                                'metadata' => [
-                                    'observation_count' => $observations
-                                        ->count(),
-                                ],
-                            ]
-                        );
-
-                    foreach (
-                        $observations as $item
-                    ) {
-                        CommercialAgreementEvidence::updateOrCreate(
-                            [
-                                'commercial_agreement_id' => $agreement->id,
-
-                                'type' => 'invoice_item',
-
-                                'reference' => $item->invoice_item_id,
+                        monthlyEquivalent: round(
+                            (float) $cadence[
+                                'monthly_equivalent'
                             ],
-                            [
-                                'summary' => $item->description,
+                            2
+                        ),
 
-                                'observed_on' => $item->invoice_date,
+                        confidence: (int) $cadence[
+                                'confidence'
+                            ],
 
-                                'observed_value' => $item->unit_price,
+                        source: 'invoice_history',
 
-                                'confidence' => 100,
-                            ]
-                        );
-                    }
+                        reason: 'Possible commercial agreement inferred from admissible hosting invoice cadence; human contractual confirmation is required.',
 
-                    return $agreement->fresh(
-                        'evidence'
+                        evidence: $observations
+                            ->map(
+                                fn (object $item) => [
+                                    'type' => 'invoice_item',
+
+                                    'reference' => (string) $item
+                                        ->invoice_item_id,
+
+                                    'summary' => $item
+                                        ->description,
+
+                                    'observed_on' => $item
+                                        ->invoice_date,
+
+                                    'observed_value' => round(
+                                        (float) $item
+                                            ->unit_price,
+                                        2
+                                    ),
+
+                                    'invoice_status' => $item
+                                        ->invoice_status,
+
+                                    'confidence' => 100,
+                                ]
+                            )
+                            ->values()
+                            ->all(),
                     );
                 }
             )
