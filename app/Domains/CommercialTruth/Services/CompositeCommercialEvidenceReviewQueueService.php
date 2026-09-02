@@ -4,6 +4,7 @@ namespace App\Domains\CommercialTruth\Services;
 
 use App\Domains\CommercialTruth\DTO\ClientServiceCandidateAssessment;
 use App\Models\AccountingInvoiceItem;
+use App\Models\CompositeCommercialReview;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
@@ -11,6 +12,7 @@ final class CompositeCommercialEvidenceReviewQueueService
 {
     public function __construct(
         private readonly ClientServiceCandidateAssessmentService $assessments,
+        private readonly CompositeCommercialEvidenceFingerprint $evidenceFingerprint,
     ) {}
 
     /**
@@ -53,7 +55,63 @@ final class CompositeCommercialEvidenceReviewQueueService
                     $assessment
                 )
             )
+            ->filter(
+                fn (
+                    ClientServiceCandidateAssessment $assessment
+                ) => ! $this->hasTerminalStructuralReview(
+                    $assessment
+                )
+            )
             ->values();
+    }
+
+    private function hasTerminalStructuralReview(
+        ClientServiceCandidateAssessment $assessment
+    ): bool {
+        $invoiceItemIds =
+            $assessment
+                ->candidate
+                ->invoiceItemIds;
+
+        if (
+            count(
+                $invoiceItemIds
+            ) !== 1
+        ) {
+            return false;
+        }
+
+        $item =
+            AccountingInvoiceItem::query()
+                ->with('invoice')
+                ->find(
+                    $invoiceItemIds[0]
+                );
+
+        if ($item === null) {
+            return false;
+        }
+
+        $evidenceFingerprint =
+            $this->evidenceFingerprint
+                ->forInvoiceItem(
+                    $item
+                );
+
+        return CompositeCommercialReview::query()
+            ->where(
+                'accounting_invoice_item_id',
+                $invoiceItemIds[0]
+            )
+            ->where(
+                'evidence_fingerprint',
+                $evidenceFingerprint
+            )
+            ->where(
+                'terminal_marker',
+                'terminal'
+            )
+            ->exists();
     }
 
     private function hasCanonicalAttribution(
