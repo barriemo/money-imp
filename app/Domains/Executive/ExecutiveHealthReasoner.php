@@ -104,11 +104,16 @@ class ExecutiveHealthReasoner
                 ?? 0
             );
 
+        $contractedMonthlyValue =
+            $commercial[
+                'contracted_monthly_value'
+            ]
+            ?? null;
+
         $recurringMonthly =
-            (float) (
-                $commercial['contracted_monthly_value']
-                ?? 0
-            );
+            $contractedMonthlyValue !== null
+                ? (float) $contractedMonthlyValue
+                : null;
 
         $contractedValueStatus =
             (string) (
