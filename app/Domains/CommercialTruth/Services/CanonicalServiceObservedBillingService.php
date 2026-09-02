@@ -15,6 +15,7 @@ final class CanonicalServiceObservedBillingService
     public function __construct(
         private readonly BillingCadenceEngine $cadence,
         private readonly BillingEvidenceAssessmentService $billingEvidence,
+        private readonly CanonicalBillingEvidenceStatusPolicy $statusPolicy,
     ) {}
 
     /**
@@ -86,6 +87,19 @@ final class CanonicalServiceObservedBillingService
                 )
                 ->whereNull(
                     'services.deleted_at'
+                )
+                /*
+                 * Canonical observed billing is evidence of billing
+                 * that was actually issued.
+                 *
+                 * Paid and overdue invoices both establish issued
+                 * commercial billing. Draft, written-off, refunded
+                 * and unknown statuses do not.
+                 */
+                ->whereIn(
+                    'invoices.status',
+                    $this->statusPolicy
+                        ->admissibleStatuses()
                 )
                 ->when(
                     $clientId,
