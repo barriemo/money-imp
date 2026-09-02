@@ -496,6 +496,38 @@ class CompositeCommercialReviewServiceTest extends TestCase
         ]);
     }
 
+    public function test_reviewed_source_evidence_cannot_be_deleted_and_take_audit_history_with_it(): void
+    {
+        [$client, $item, $fingerprint] =
+            $this->compositeEvidence();
+
+        $user =
+            User::factory()->create();
+
+        app(
+            CompositeCommercialReviewService::class
+        )->bundledService(
+            clientId: (string) $client->id,
+            candidateFingerprint: $fingerprint,
+            invoiceItemId: (string) $item->id,
+            reviewedBy: $user->id,
+            asOf: CarbonImmutable::parse(
+                '2026-09-02'
+            )
+        );
+
+        $this->assertSame(
+            1,
+            CompositeCommercialReview::count()
+        );
+
+        $this->expectException(
+            QueryException::class
+        );
+
+        $item->delete();
+    }
+
     private function compositeEvidence(): array
     {
         $client =

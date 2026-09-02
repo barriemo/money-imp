@@ -97,13 +97,13 @@ return new class extends Migration
                     )
                     ->references('id')
                     ->on('accounting_invoice_items')
-                    ->cascadeOnDelete();
+                    ->restrictOnDelete();
 
                 $table
                     ->foreign('client_id')
                     ->references('id')
                     ->on('clients')
-                    ->cascadeOnDelete();
+                    ->restrictOnDelete();
 
                 $table
                     ->foreign('reviewed_by')
