@@ -26,6 +26,30 @@ final class ClientServiceAttributionReviewQueueService
     }
 
     /**
+     * New unattributed evidence which maps uniquely to a
+     * canonical service that is not currently active.
+     *
+     * This is deliberately NOT safe attribution.
+     *
+     * It requires explicit service-status review before the
+     * evidence can ever be treated as current canonical truth.
+     *
+     * @return Collection<int, ClientServiceAttributionCandidate>
+     */
+    public function inactiveTargets(): Collection
+    {
+        return $this->candidates
+            ->all()
+            ->filter(
+                fn (
+                    ClientServiceAttributionCandidate $candidate
+                ) => $candidate->matchStatus
+                    === 'inactive_target'
+            )
+            ->values();
+    }
+
+    /**
      * @return Collection<int, ClientServiceAttributionCandidate>
      */
     public function forClient(

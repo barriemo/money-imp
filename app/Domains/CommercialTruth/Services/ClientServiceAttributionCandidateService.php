@@ -176,6 +176,7 @@ final class ClientServiceAttributionCandidateService
                     'decision',
                     [
                         'confirmed',
+                        'confirmed_historical',
                         'merged',
                     ]
                 )

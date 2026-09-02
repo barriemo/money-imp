@@ -347,6 +347,16 @@
         >
             Service attribution {{ $counts['attribution'] }}
         </a>
+
+        <a
+            class="{{ $queue === 'status' ? 'active' : '' }}"
+            href="{{ route(
+                'reconciliation.commercial.index',
+                ['queue' => 'status']
+            ) }}"
+        >
+            Service status {{ $counts['status'] }}
+        </a>
     </div>
 
     <section class="summary">
@@ -358,6 +368,11 @@
         <div class="stat">
             <strong>{{ $counts['attribution'] }}</strong>
             <span>Invoice attribution reviews</span>
+        </div>
+
+        <div class="stat">
+            <strong>{{ $counts['status'] }}</strong>
+            <span>Service-status reviews</span>
         </div>
 
         <div class="stat">
@@ -501,11 +516,23 @@
                 </div>
 
                 <div class="truth-boundary">
-                    Money Imp has observed recurring invoice
-                    history consistent with this service.
-                    A human decision is required before this
-                    becomes canonical ClientService truth.
-                    This is not contracted MRR.
+                    @if (
+                        $assessment->freshness
+                        === 'recently_observed'
+                    )
+                        Money Imp has established recurring
+                        invoice history for this service, but
+                        current active status is not established.
+                        A human may preserve it as historical
+                        canonical service truth without treating
+                        it as current recurring value.
+                    @else
+                        Money Imp has observed recurring invoice
+                        history consistent with this service.
+                        A human decision is required before this
+                        becomes canonical ClientService truth.
+                        This is not contracted MRR.
+                    @endif
                 </div>
 
                 <details>
@@ -564,45 +591,14 @@
                 </details>
 
                 <div class="actions">
-                    <form
-                        method="POST"
-                        action="{{ route(
-                            'reconciliation.commercial.confirm',
-                            [
-                                'clientId' =>
-                                    $candidate->clientId,
-                                'candidateFingerprint' =>
-                                    $candidate->fingerprint,
-                            ]
-                        ) }}"
-                    >
-                        @csrf
-
-                        <input
-                            class="service-name"
-                            type="text"
-                            name="service_name"
-                            placeholder="Canonical service name…"
-                            required
-                        >
-
-                        <input
-                            class="reason"
-                            type="text"
-                            name="reason"
-                            placeholder="Optional review note…"
-                        >
-
-                        <button type="submit">
-                            Confirm New Service
-                        </button>
-                    </form>
-
-                    @if ($clientServices->isNotEmpty())
+                    @if (
+                        $assessment->freshness
+                        === 'current'
+                    )
                         <form
                             method="POST"
                             action="{{ route(
-                                'reconciliation.commercial.merge',
+                                'reconciliation.commercial.confirm',
                                 [
                                     'clientId' =>
                                         $candidate->clientId,
@@ -613,21 +609,13 @@
                         >
                             @csrf
 
-                            <select
-                                class="service-select"
-                                name="client_service_id"
+                            <input
+                                class="service-name"
+                                type="text"
+                                name="service_name"
+                                placeholder="Canonical service name…"
                                 required
                             >
-                                <option value="">
-                                    Merge into existing service…
-                                </option>
-
-                                @foreach ($clientServices as $service)
-                                    <option value="{{ $service->id }}">
-                                        {{ $service->name }}
-                                    </option>
-                                @endforeach
-                            </select>
 
                             <input
                                 class="reason"
@@ -636,11 +624,95 @@
                                 placeholder="Optional review note…"
                             >
 
+                            <button type="submit">
+                                Confirm New Service
+                            </button>
+                        </form>
+
+                        @if ($clientServices->isNotEmpty())
+                            <form
+                                method="POST"
+                                action="{{ route(
+                                    'reconciliation.commercial.merge',
+                                    [
+                                        'clientId' =>
+                                            $candidate->clientId,
+                                        'candidateFingerprint' =>
+                                            $candidate->fingerprint,
+                                    ]
+                                ) }}"
+                            >
+                                @csrf
+
+                                <select
+                                    class="service-select"
+                                    name="client_service_id"
+                                    required
+                                >
+                                    <option value="">
+                                        Merge into existing service…
+                                    </option>
+
+                                    @foreach ($clientServices as $service)
+                                        <option value="{{ $service->id }}">
+                                            {{ $service->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+
+                                <input
+                                    class="reason"
+                                    type="text"
+                                    name="reason"
+                                    placeholder="Optional review note…"
+                                >
+
+                                <button
+                                    class="secondary"
+                                    type="submit"
+                                >
+                                    Merge Into Existing
+                                </button>
+                            </form>
+                        @endif
+                    @elseif (
+                        $assessment->freshness
+                        === 'recently_observed'
+                    )
+                        <form
+                            method="POST"
+                            action="{{ route(
+                                'reconciliation.commercial.historical',
+                                [
+                                    'clientId' =>
+                                        $candidate->clientId,
+                                    'candidateFingerprint' =>
+                                        $candidate->fingerprint,
+                                ]
+                            ) }}"
+                        >
+                            @csrf
+
+                            <input
+                                class="service-name"
+                                type="text"
+                                name="service_name"
+                                placeholder="Historical canonical service name…"
+                                required
+                            >
+
+                            <input
+                                class="reason"
+                                type="text"
+                                name="reason"
+                                placeholder="Historical status evidence note…"
+                            >
+
                             <button
                                 class="secondary"
                                 type="submit"
                             >
-                                Merge Into Existing
+                                Confirm Historical Service
                             </button>
                         </form>
                     @endif
@@ -712,7 +784,7 @@
                 </strong>
             </div>
         @endforelse
-    @else
+    @elseif ($queue === 'attribution')
         @forelse ($attributionCandidates as $candidate)
             @php
                 $evidenceItems = collect(
@@ -922,6 +994,163 @@
                 <strong>
                     No new invoice attribution decisions
                     currently need human review.
+                </strong>
+            </div>
+        @endforelse
+    @elseif ($queue === 'status')
+        @forelse ($statusCandidates as $candidate)
+            @php
+                $evidenceItems = collect(
+                    $candidate->invoiceItemIds
+                )
+                    ->map(
+                        fn ($id) =>
+                            $statusEvidence
+                                ->get(
+                                    (string) $id
+                                )
+                    )
+                    ->filter()
+                    ->sortByDesc(
+                        fn ($item) =>
+                            $item
+                                ->invoice
+                                ?->invoice_date
+                                ?->timestamp
+                            ?? 0
+                    )
+                    ->values();
+            @endphp
+
+            <article class="candidate">
+                <div class="candidate-top">
+                    <div>
+                        <div class="service-type">
+                            Non-active service status review
+                        </div>
+
+                        <h2>
+                            {{ $candidate->clientName }}
+                        </h2>
+
+                        @if ($candidate->serviceHint)
+                            <div class="muted">
+                                Hint:
+                                {{ $candidate->serviceHint }}
+                            </div>
+                        @endif
+                    </div>
+
+                    <div>
+                        <div class="value">
+                            £{{ number_format(
+                                (float) $candidate
+                                    ->signedObservedNet,
+                                2
+                            ) }}
+                        </div>
+
+                        <div class="value-label">
+                            new unattributed evidence
+                        </div>
+                    </div>
+                </div>
+
+                <div class="badges">
+                    <span class="badge recently_observed">
+                        Inactive canonical target
+                    </span>
+
+                    <span class="badge">
+                        {{ str_replace(
+                            '_',
+                            ' ',
+                            $candidate->serviceType
+                        ) }}
+                    </span>
+
+                    <span class="badge">
+                        {{ $candidate->evidenceCount }}
+                        evidence item(s)
+                    </span>
+
+                    <span class="badge">
+                        {{ $candidate->firstObservedOn ?? 'unknown' }}
+                        →
+                        {{ $candidate->lastObservedOn ?? 'unknown' }}
+                    </span>
+                </div>
+
+                <div class="truth-boundary">
+                    New invoice evidence matches a previously
+                    reconciled canonical service which is not
+                    currently active. The evidence remains
+                    unattributed. Money Imp will not reactivate
+                    the service or treat this billing as current
+                    canonical truth without an explicit human
+                    service-status decision.
+                </div>
+
+                <details>
+                    <summary>
+                        Review exact new invoice evidence
+                        ({{ $evidenceItems->count() }})
+                    </summary>
+
+                    <table class="evidence-table">
+                        <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Invoice</th>
+                            <th>Description</th>
+                            <th>Net</th>
+                        </tr>
+                        </thead>
+
+                        <tbody>
+                        @foreach ($evidenceItems as $item)
+                            <tr>
+                                <td>
+                                    {{
+                                        $item
+                                            ->invoice
+                                            ?->invoice_date
+                                            ?->format('d M Y')
+                                        ?? '—'
+                                    }}
+                                </td>
+
+                                <td>
+                                    {{
+                                        $item
+                                            ->invoice
+                                            ?->invoice_number
+                                        ?? '—'
+                                    }}
+                                </td>
+
+                                <td>
+                                    {{ $item->description }}
+                                </td>
+
+                                <td class="money">
+                                    £{{ number_format(
+                                        (float) $item
+                                            ->net_amount,
+                                        2
+                                    ) }}
+                                </td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                </details>
+            </article>
+        @empty
+            <div class="empty">
+                <strong>
+                    No non-active services currently have
+                    new evidence requiring status review.
                 </strong>
             </div>
         @endforelse

@@ -660,6 +660,338 @@ class ClientServiceReconciliationServiceTest extends TestCase
         );
     }
 
+    public function test_recently_observed_candidate_can_be_confirmed_as_historical_without_creating_current_value(): void
+    {
+        $client =
+            $this->recentlyObservedHostingClient();
+
+        $user =
+            User::factory()->create();
+
+        $asOf =
+            CarbonImmutable::parse(
+                '2026-09-01'
+            );
+
+        $assessment =
+            $this->readyAssessment(
+                $client
+            );
+
+        $this->assertSame(
+            'recently_observed',
+            $assessment->freshness
+        );
+
+        $before =
+            app(
+                CurrentCommercialPositionService::class
+            )->position(
+                $asOf
+            );
+
+        $this->assertSame(
+            0.0,
+            $before
+                ->supportedCurrentMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            1,
+            app(
+                ClientServiceReconciliationQueueService::class
+            )
+                ->ready($asOf)
+                ->count()
+        );
+
+        $review =
+            app(
+                ClientServiceReconciliationService::class
+            )->confirmHistorical(
+                clientId: $client->id,
+                candidateFingerprint: $assessment
+                    ->candidate
+                    ->fingerprint,
+                serviceName: 'Website Hosting',
+                reviewedBy: $user->id,
+                reason: 'Historical recurring service confirmed; current active status not established.',
+                asOf: $asOf
+            );
+
+        $this->assertSame(
+            'confirmed_historical',
+            $review->decision
+        );
+
+        $service =
+            ClientService::findOrFail(
+                $review->client_service_id
+            );
+
+        $this->assertSame(
+            'Website Hosting',
+            $service->name
+        );
+
+        $this->assertSame(
+            'historical',
+            $service->status
+        );
+
+        /*
+         * We know the service existed.
+         *
+         * We do NOT know the contractual end date, so do not
+         * invent one from the last invoice observation.
+         */
+        $this->assertNull(
+            $service->ends_on
+        );
+
+        $this->assertSame(
+            'human_confirmed_historical_invoice_evidence',
+            $service->metadata[
+                'canonical_status_basis'
+            ]
+        );
+
+        $this->assertSame(
+            'hosting',
+            $service->metadata[
+                'classified_service_type'
+            ]
+        );
+
+        $this->assertSame(
+            3,
+            AccountingInvoiceItem::query()
+                ->where(
+                    'client_service_id',
+                    $service->id
+                )
+                ->count()
+        );
+
+        /*
+         * confirmed_historical is terminal for this exact
+         * evidence set.
+         */
+        $this->assertSame(
+            0,
+            app(
+                ClientServiceReconciliationQueueService::class
+            )
+                ->ready($asOf)
+                ->count()
+        );
+
+        $after =
+            app(
+                CurrentCommercialPositionService::class
+            )->position(
+                $asOf
+            );
+
+        /*
+         * Canonical historical truth must not turn old billing
+         * evidence into current recurring value.
+         */
+        $this->assertSame(
+            0.0,
+            $after
+                ->supportedCurrentMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            0.0,
+            $after
+                ->canonicalCurrentObservedMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            0,
+            $after
+                ->canonicalActiveServiceCount
+        );
+
+        $this->assertSame(
+            1,
+            ClientService::count()
+        );
+
+        $this->assertSame(
+            1,
+            ClientServiceReconciliation::count()
+        );
+    }
+
+    public function test_current_candidate_cannot_be_confirmed_as_historical(): void
+    {
+        $client =
+            $this->recurringHostingClient();
+
+        $user =
+            User::factory()->create();
+
+        $asOf =
+            CarbonImmutable::parse(
+                '2026-09-01'
+            );
+
+        $assessment =
+            $this->readyAssessment(
+                $client
+            );
+
+        $this->assertSame(
+            'current',
+            $assessment->freshness
+        );
+
+        try {
+            app(
+                ClientServiceReconciliationService::class
+            )->confirmHistorical(
+                clientId: $client->id,
+                candidateFingerprint: $assessment
+                    ->candidate
+                    ->fingerprint,
+                serviceName: 'Website Hosting',
+                reviewedBy: $user->id,
+                asOf: $asOf
+            );
+
+            $this->fail(
+                'Expected current evidence to be rejected for historical confirmation.'
+            );
+        } catch (
+            ValidationException $exception
+        ) {
+            $this->assertArrayHasKey(
+                'candidate',
+                $exception->errors()
+            );
+        }
+
+        $this->assertSame(
+            0,
+            ClientService::count()
+        );
+
+        $this->assertSame(
+            0,
+            ClientServiceReconciliation::count()
+        );
+
+        $this->assertSame(
+            0,
+            AccountingInvoiceItem::query()
+                ->whereNotNull(
+                    'client_service_id'
+                )
+                ->count()
+        );
+    }
+
+    public function test_recently_observed_candidate_cannot_be_confirmed_as_active(): void
+    {
+        $client =
+            $this->recentlyObservedHostingClient();
+
+        $user =
+            User::factory()->create();
+
+        $asOf =
+            CarbonImmutable::parse(
+                '2026-09-01'
+            );
+
+        $assessment =
+            $this->readyAssessment(
+                $client
+            );
+
+        $this->assertSame(
+            'recently_observed',
+            $assessment->freshness
+        );
+
+        try {
+            app(
+                ClientServiceReconciliationService::class
+            )->confirm(
+                clientId: $client->id,
+                candidateFingerprint: $assessment
+                    ->candidate
+                    ->fingerprint,
+                serviceName: 'Website Hosting',
+                reviewedBy: $user->id,
+                asOf: $asOf
+            );
+
+            $this->fail(
+                'Expected recently observed evidence to be rejected for active confirmation.'
+            );
+        } catch (
+            ValidationException $exception
+        ) {
+            $this->assertArrayHasKey(
+                'candidate',
+                $exception->errors()
+            );
+        }
+
+        $this->assertSame(
+            0,
+            ClientService::count()
+        );
+
+        $this->assertSame(
+            0,
+            ClientServiceReconciliation::count()
+        );
+
+        $this->assertSame(
+            0,
+            AccountingInvoiceItem::query()
+                ->whereNotNull(
+                    'client_service_id'
+                )
+                ->count()
+        );
+    }
+
+    private function recentlyObservedHostingClient(): Client
+    {
+        $client =
+            Client::factory()->create();
+
+        foreach (
+            [
+                '2026-04-30',
+                '2026-05-29',
+                '2026-06-30',
+            ] as $date
+        ) {
+            $invoice =
+                $this->invoice(
+                    $client,
+                    $date
+                );
+
+            AccountingInvoiceItem::create([
+                'accounting_invoice_id' => $invoice->id,
+                'description' => 'Monthly Hosting, Security Updates & Backups',
+                'quantity' => 1,
+                'unit_price' => 75,
+                'net_amount' => 75,
+            ]);
+        }
+
+        return $client;
+    }
+
     private function recurringHostingClient(): Client
     {
         $client =

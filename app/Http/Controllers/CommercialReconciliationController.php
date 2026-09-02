@@ -35,6 +35,7 @@ class CommercialReconciliationController extends Controller
                 [
                     'services',
                     'attribution',
+                    'status',
                 ],
                 true
             )
@@ -58,6 +59,12 @@ class CommercialReconciliationController extends Controller
             $this->sortAttributionCandidates(
                 $attributionQueue
                     ->ready()
+            );
+
+        $statusCandidates =
+            $this->sortAttributionCandidates(
+                $attributionQueue
+                    ->inactiveTargets()
             );
 
         $existingServices =
@@ -88,6 +95,8 @@ class CommercialReconciliationController extends Controller
 
                 'attributionCandidates' => $attributionCandidates,
 
+                'statusCandidates' => $statusCandidates,
+
                 'serviceEvidence' => $this->serviceEvidence(
                     $serviceCandidates
                 ),
@@ -96,14 +105,21 @@ class CommercialReconciliationController extends Controller
                     $attributionCandidates
                 ),
 
+                'statusEvidence' => $this->attributionEvidence(
+                    $statusCandidates
+                ),
+
                 'existingServices' => $existingServices,
 
                 'counts' => [
-                'services' => $serviceCandidates
-                    ->count(),
+                    'services' => $serviceCandidates
+                        ->count(),
 
-                'attribution' => $attributionCandidates
-                    ->count(),
+                    'attribution' => $attributionCandidates
+                        ->count(),
+
+                    'status' => $statusCandidates
+                        ->count(),
                 ],
             ]
         );
@@ -158,6 +174,58 @@ class CommercialReconciliationController extends Controller
                     ->clientService
                     ->name
                 .' confirmed from the reviewed evidence.'
+            );
+    }
+
+    public function confirmHistoricalService(
+        Request $request,
+        string $clientId,
+        string $candidateFingerprint,
+        ClientServiceReconciliationService $reconciliation,
+    ): RedirectResponse {
+        $validated =
+            $request->validate([
+                'service_name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                ],
+                'reason' => [
+                    'nullable',
+                    'string',
+                    'max:2000',
+                ],
+            ]);
+
+        $review =
+            $reconciliation
+                ->confirmHistorical(
+                    clientId: $clientId,
+                    candidateFingerprint: $candidateFingerprint,
+                    serviceName: $validated[
+                            'service_name'
+                        ],
+                    reviewedBy: $request->user()->id,
+                    reason: $validated[
+                            'reason'
+                        ] ?? null,
+                    asOf: CarbonImmutable::today(),
+                );
+
+        return redirect()
+            ->route(
+                'reconciliation.commercial.index',
+                [
+                    'queue' => 'services',
+                ]
+            )
+            ->with(
+                'success',
+                'Historical canonical client service '
+                .$review
+                    ->clientService
+                    ->name
+                .' confirmed from reviewed invoice evidence. Current active status remains unestablished.'
             );
     }
 

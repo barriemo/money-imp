@@ -169,6 +169,260 @@ class CommercialReconciliationInboxTest extends TestCase
         );
     }
 
+    public function test_recently_observed_candidate_can_be_confirmed_as_historical_from_inbox(): void
+    {
+        $user =
+            User::factory()->create();
+
+        $client =
+            Client::factory()->create([
+                'name' => 'Historical Hosting Client',
+            ]);
+
+        foreach (
+            [
+                '2026-04-30',
+                '2026-05-29',
+                '2026-06-30',
+            ] as $date
+        ) {
+            $this->invoiceItem(
+                client: $client,
+                date: $date,
+                description: 'Monthly Hosting, Security Updates & Backups',
+                amount: 75
+            );
+        }
+
+        $candidate =
+            $this->readyAssessment(
+                $client
+            );
+
+        $this->assertSame(
+            'recently_observed',
+            $candidate->freshness
+        );
+
+        $this->actingAs($user)
+            ->get(
+                route(
+                    'reconciliation.commercial.index',
+                    [
+                        'queue' => 'services',
+                    ]
+                )
+            )
+            ->assertOk()
+            ->assertSee(
+                'Historical Hosting Client'
+            )
+            ->assertSee(
+                'Confirm Historical Service'
+            )
+            ->assertDontSee(
+                'Confirm New Service'
+            )
+            ->assertDontSee(
+                'Merge Into Existing'
+            )
+            ->assertSee(
+                'current active status is not established'
+            );
+
+        $this->actingAs($user)
+            ->post(
+                route(
+                    'reconciliation.commercial.historical',
+                    [
+                        'clientId' => $client->id,
+
+                        'candidateFingerprint' => $candidate
+                            ->candidate
+                            ->fingerprint,
+                    ]
+                ),
+                [
+                    'service_name' => 'Website Hosting',
+
+                    'reason' => 'Historical recurring service confirmed from invoice evidence; current active status not established.',
+                ]
+            )
+            ->assertRedirect(
+                route(
+                    'reconciliation.commercial.index',
+                    [
+                        'queue' => 'services',
+                    ]
+                )
+            );
+
+        $service =
+            ClientService::firstOrFail();
+
+        $this->assertSame(
+            'Website Hosting',
+            $service->name
+        );
+
+        $this->assertSame(
+            'historical',
+            $service->status
+        );
+
+        $this->assertNull(
+            $service->ends_on
+        );
+
+        $this->assertSame(
+            3,
+            AccountingInvoiceItem::query()
+                ->where(
+                    'client_service_id',
+                    $service->id
+                )
+                ->count()
+        );
+
+        $review =
+            ClientServiceReconciliation::firstOrFail();
+
+        $this->assertSame(
+            'confirmed_historical',
+            $review->decision
+        );
+
+        $this->assertSame(
+            $service->id,
+            $review->client_service_id
+        );
+
+        $this->assertSame(
+            $user->id,
+            $review->reviewed_by
+        );
+    }
+
+    public function test_new_evidence_for_historical_service_is_visible_in_status_review_inbox(): void
+    {
+        $user =
+            User::factory()->create();
+
+        $client =
+            Client::factory()->create([
+                'name' => 'Returning Historical Client',
+            ]);
+
+        foreach (
+            [
+                '2026-04-30',
+                '2026-05-29',
+                '2026-06-30',
+            ] as $date
+        ) {
+            $this->invoiceItem(
+                client: $client,
+                date: $date,
+                description: 'Monthly Hosting, Security Updates & Backups',
+                amount: 75
+            );
+        }
+
+        $candidate =
+            $this->readyAssessment(
+                $client
+            );
+
+        $review =
+            app(
+                ClientServiceReconciliationService::class
+            )->confirmHistorical(
+                clientId: $client->id,
+                candidateFingerprint: $candidate
+                    ->candidate
+                    ->fingerprint,
+                serviceName: 'Website Hosting',
+                reviewedBy: $user->id,
+                asOf: CarbonImmutable::parse(
+                    '2026-09-01'
+                )
+            );
+
+        $service =
+            ClientService::findOrFail(
+                $review->client_service_id
+            );
+
+        $this->assertSame(
+            'historical',
+            $service->status
+        );
+
+        $newItem =
+            $this->invoiceItem(
+                client: $client,
+                date: '2026-09-30',
+                description: 'Monthly Hosting, Security Updates & Backups',
+                amount: 75
+            );
+
+        $this->assertNull(
+            $newItem->client_service_id
+        );
+
+        $this->actingAs($user)
+            ->get(
+                route(
+                    'reconciliation.commercial.index',
+                    [
+                        'queue' => 'status',
+                    ]
+                )
+            )
+            ->assertOk()
+            ->assertSee(
+                'Service status 1'
+            )
+            ->assertSee(
+                'Returning Historical Client'
+            )
+            ->assertSee(
+                'Non-active service status review'
+            )
+            ->assertSee(
+                'Inactive canonical target'
+            )
+            ->assertSee(
+                'new unattributed evidence'
+            )
+            ->assertSee(
+                'will not reactivate'
+            )
+            ->assertSee(
+                'Monthly Hosting, Security Updates & Backups'
+            )
+            ->assertDontSee(
+                'Approve Attribution'
+            );
+
+        /*
+         * Merely opening the review inbox must never mutate
+         * either the evidence or canonical service status.
+         */
+        $this->assertNull(
+            $newItem
+                ->fresh()
+                ->client_service_id
+        );
+
+        $this->assertSame(
+            'historical',
+            $service
+                ->fresh()
+                ->status
+        );
+    }
+
     public function test_candidate_can_be_merged_into_existing_active_service(): void
     {
         $user =

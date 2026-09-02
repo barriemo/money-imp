@@ -77,7 +77,41 @@ final class ClientServiceReconciliationService
             reason: $reason,
             asOf: $asOf,
             serviceName: $serviceName,
-            targetClientServiceId: null
+            targetClientServiceId: null,
+            serviceStatus: 'active',
+            requiredFreshness: 'current'
+        );
+    }
+
+    public function confirmHistorical(
+        string $clientId,
+        string $candidateFingerprint,
+        string $serviceName,
+        int $reviewedBy,
+        ?string $reason = null,
+        ?CarbonImmutable $asOf = null
+    ): ClientServiceReconciliation {
+        $serviceName = trim(
+            $serviceName
+        );
+
+        if ($serviceName === '') {
+            throw ValidationException::withMessages([
+                'service_name' => 'A canonical client service name is required.',
+            ]);
+        }
+
+        return $this->promote(
+            clientId: $clientId,
+            candidateFingerprint: $candidateFingerprint,
+            decision: 'confirmed_historical',
+            reviewedBy: $reviewedBy,
+            reason: $reason,
+            asOf: $asOf,
+            serviceName: $serviceName,
+            targetClientServiceId: null,
+            serviceStatus: 'historical',
+            requiredFreshness: 'recently_observed'
         );
     }
 
@@ -97,7 +131,9 @@ final class ClientServiceReconciliationService
             reason: $reason,
             asOf: $asOf,
             serviceName: null,
-            targetClientServiceId: $clientServiceId
+            targetClientServiceId: $clientServiceId,
+            serviceStatus: null,
+            requiredFreshness: null
         );
     }
 
@@ -109,7 +145,9 @@ final class ClientServiceReconciliationService
         ?string $reason,
         ?CarbonImmutable $asOf,
         ?string $serviceName,
-        ?string $targetClientServiceId
+        ?string $targetClientServiceId,
+        ?string $serviceStatus,
+        ?string $requiredFreshness
     ): ClientServiceReconciliation {
         $asOf ??=
             CarbonImmutable::today();
@@ -123,7 +161,9 @@ final class ClientServiceReconciliationService
                 $reason,
                 $asOf,
                 $serviceName,
-                $targetClientServiceId
+                $targetClientServiceId,
+                $serviceStatus,
+                $requiredFreshness
             ): ClientServiceReconciliation {
                 $assessment =
                     $this->resolveAssessment(
@@ -131,6 +171,11 @@ final class ClientServiceReconciliationService
                         candidateFingerprint: $candidateFingerprint,
                         asOf: $asOf
                     );
+
+                $this->assertPromotionFreshness(
+                    assessment: $assessment,
+                    requiredFreshness: $requiredFreshness
+                );
 
                 $candidate =
                     $assessment->candidate;
@@ -218,6 +263,11 @@ final class ClientServiceReconciliationService
                         asOf: $asOf
                     );
 
+                $this->assertPromotionFreshness(
+                    assessment: $assessment,
+                    requiredFreshness: $requiredFreshness
+                );
+
                 $candidate =
                     $assessment->candidate;
 
@@ -244,7 +294,16 @@ final class ClientServiceReconciliationService
                             $candidate
                         );
 
-                if ($decision === 'confirmed') {
+                if (
+                    in_array(
+                        $decision,
+                        [
+                            'confirmed',
+                            'confirmed_historical',
+                        ],
+                        true
+                    )
+                ) {
                     $service =
                         ClientService::create([
                             'client_id' => $clientId,
@@ -259,10 +318,16 @@ final class ClientServiceReconciliationService
 
                             'type' => 'service',
 
-                            'status' => 'active',
+                            'status' => $serviceStatus
+                                ?? 'active',
 
                             'metadata' => [
                                 'source' => 'human_commercial_reconciliation',
+
+                                'canonical_status_basis' => $decision
+                                        === 'confirmed_historical'
+                                            ? 'human_confirmed_historical_invoice_evidence'
+                                            : 'human_confirmed_current_invoice_evidence',
 
                                 'candidate_fingerprint' => $candidate
                                     ->fingerprint,
@@ -683,6 +748,31 @@ final class ClientServiceReconciliationService
         }
 
         return $assessment;
+    }
+
+    private function assertPromotionFreshness(
+        ClientServiceCandidateAssessment $assessment,
+        ?string $requiredFreshness
+    ): void {
+        if ($requiredFreshness === null) {
+            return;
+        }
+
+        if (
+            $assessment->freshness
+            === $requiredFreshness
+        ) {
+            return;
+        }
+
+        $message =
+            $requiredFreshness === 'current'
+                ? 'Only current recurring evidence can be confirmed as an active canonical service.'
+                : 'Only recently observed recurring evidence can be confirmed as a historical canonical service.';
+
+        throw ValidationException::withMessages([
+            'candidate' => $message,
+        ]);
     }
 
     private function cleanReason(

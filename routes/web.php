@@ -101,6 +101,14 @@ Route::middleware('auth')->group(function (): void {
     )->name('reconciliation.commercial.confirm');
 
     Route::post(
+        '/reconciliation/commercial/{clientId}/{candidateFingerprint}/historical',
+        [
+            CommercialReconciliationController::class,
+            'confirmHistoricalService',
+        ]
+    )->name('reconciliation.commercial.historical');
+
+    Route::post(
         '/reconciliation/commercial/{clientId}/{candidateFingerprint}/merge',
         [
             CommercialReconciliationController::class,

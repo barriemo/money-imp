@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Domains\CommercialTruth\CommercialServiceFingerprint;
 use App\Domains\CommercialTruth\Services\ClientServiceAttributionCandidateService;
+use App\Domains\CommercialTruth\Services\ClientServiceAttributionReviewQueueService;
 use App\Domains\CommercialTruth\Services\ClientServiceCandidateAssessmentService;
 use App\Domains\CommercialTruth\Services\ClientServiceReconciliationQueueService;
 use App\Domains\CommercialTruth\Services\ClientServiceReconciliationService;
@@ -153,6 +154,176 @@ class ClientServiceAttributionCandidateServiceTest extends TestCase
             $newItem
                 ->fresh()
                 ->client_service_id
+        );
+    }
+
+    public function test_new_invoice_after_historical_confirmation_is_exposed_as_inactive_target_not_lost(): void
+    {
+        $client =
+            Client::factory()->create();
+
+        foreach (
+            [
+                '2026-04-30',
+                '2026-05-29',
+                '2026-06-30',
+            ] as $date
+        ) {
+            $this->hostingObservation(
+                $client,
+                $date,
+                'HISTORICAL-HOST-'.$date
+            );
+        }
+
+        $user =
+            User::factory()->create();
+
+        $initialAsOf =
+            CarbonImmutable::parse(
+                '2026-09-01'
+            );
+
+        $assessment =
+            $this->readyAssessment(
+                $client,
+                $initialAsOf
+            );
+
+        $this->assertSame(
+            'recently_observed',
+            $assessment->freshness
+        );
+
+        $review =
+            app(
+                ClientServiceReconciliationService::class
+            )->confirmHistorical(
+                clientId: $client->id,
+                candidateFingerprint: $assessment
+                    ->candidate
+                    ->fingerprint,
+                serviceName: 'Website Hosting',
+                reviewedBy: $user->id,
+                asOf: $initialAsOf
+            );
+
+        $service =
+            ClientService::findOrFail(
+                $review->client_service_id
+            );
+
+        $this->assertSame(
+            'historical',
+            $service->status
+        );
+
+        $newItem =
+            $this->hostingObservation(
+                $client,
+                '2026-09-30',
+                'HOSTING-RETURNS'
+            );
+
+        $laterAsOf =
+            CarbonImmutable::parse(
+                '2026-10-01'
+            );
+
+        /*
+         * It must not be mistaken for a brand-new service
+         * existence review merely because new evidence appeared.
+         */
+        $this->assertSame(
+            0,
+            app(
+                ClientServiceReconciliationQueueService::class
+            )
+                ->ready(
+                    $laterAsOf
+                )
+                ->count()
+        );
+
+        $candidate =
+            app(
+                ClientServiceAttributionCandidateService::class
+            )
+                ->forClient(
+                    $client
+                )
+                ->first();
+
+        $this->assertNotNull(
+            $candidate
+        );
+
+        /*
+         * Crucially, the system remembers that this fingerprint
+         * belongs to a known canonical service, but also remembers
+         * that the service is NOT active.
+         */
+        $this->assertSame(
+            'inactive_target',
+            $candidate->matchStatus
+        );
+
+        $this->assertFalse(
+            $candidate->isReadyForReview()
+        );
+
+        $this->assertNull(
+            $candidate->clientServiceId
+        );
+
+        $this->assertSame(
+            [
+                $service->id,
+            ],
+            $candidate
+                ->candidateClientServiceIds
+        );
+
+        $this->assertSame(
+            [
+                $newItem->id,
+            ],
+            $candidate->invoiceItemIds
+        );
+
+        /*
+         * The new invoice is deliberately not attributed.
+         *
+         * Historical status must never silently become active.
+         */
+        $this->assertNull(
+            $newItem
+                ->fresh()
+                ->client_service_id
+        );
+
+        $statusReviews =
+            app(
+                ClientServiceAttributionReviewQueueService::class
+            )->inactiveTargets();
+
+        $this->assertCount(
+            1,
+            $statusReviews
+        );
+
+        $this->assertSame(
+            $client->id,
+            $statusReviews
+                ->first()
+                ->clientId
+        );
+
+        $this->assertSame(
+            'inactive_target',
+            $statusReviews
+                ->first()
+                ->matchStatus
         );
     }
 

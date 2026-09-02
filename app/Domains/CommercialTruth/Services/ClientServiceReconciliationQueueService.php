@@ -125,6 +125,7 @@ final class ClientServiceReconciliationQueueService
             [
                 'rejected',
                 'confirmed',
+                'confirmed_historical',
                 'merged',
             ],
             true
