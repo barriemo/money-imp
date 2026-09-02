@@ -100,6 +100,82 @@ class ClientServiceCandidateServiceTest extends TestCase
         );
     }
 
+    public function test_identical_composite_invoice_lines_remain_source_item_atomic(): void
+    {
+        $client =
+            Client::factory()->create();
+
+        foreach (
+            [
+                '2026-07-31',
+                '2026-08-31',
+            ] as $date
+        ) {
+            $invoice =
+                AccountingInvoice::create([
+                    'client_id' => $client->id,
+                    'invoice_number' => 'COMP-'.$date,
+                    'invoice_date' => $date,
+                    'status' => 'paid',
+                ]);
+
+            AccountingInvoiceItem::create([
+                'accounting_invoice_id' => $invoice->id,
+                'description' => 'Consultancy / Support / Website Development / SEO / Content',
+                'quantity' => 1,
+                'unit_price' => 4000,
+                'net_amount' => 4000,
+            ]);
+        }
+
+        $composite =
+            app(
+                ClientServiceCandidateService::class
+            )
+                ->forClient(
+                    $client
+                )
+                ->filter(
+                    fn ($candidate) => $candidate
+                        ->isCompositeCandidate()
+                )
+                ->values();
+
+        $this->assertCount(
+            2,
+            $composite
+        );
+
+        $this->assertTrue(
+            $composite->every(
+                fn ($candidate) => $candidate->evidenceCount
+                    === 1
+            )
+        );
+
+        $this->assertTrue(
+            $composite->every(
+                fn ($candidate) => count(
+                    $candidate->invoiceItemIds
+                ) === 1
+            )
+        );
+
+        /*
+         * Classification identity may match, but source evidence
+         * must remain separate for future human decomposition.
+         */
+        $this->assertSame(
+            $composite[0]->fingerprint,
+            $composite[1]->fingerprint
+        );
+
+        $this->assertNotSame(
+            $composite[0]->invoiceItemIds[0],
+            $composite[1]->invoiceItemIds[0]
+        );
+    }
+
     public function test_project_candidates_do_not_collapse_into_one_fake_service(): void
     {
         $client = Client::factory()->create();

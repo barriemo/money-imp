@@ -339,6 +339,16 @@
         </a>
 
         <a
+            class="{{ $queue === 'composite' ? 'active' : '' }}"
+            href="{{ route(
+                'reconciliation.commercial.index',
+                ['queue' => 'composite']
+            ) }}"
+        >
+            Composite evidence {{ $counts['composite'] }}
+        </a>
+
+        <a
             class="{{ $queue === 'attribution' ? 'active' : '' }}"
             href="{{ route(
                 'reconciliation.commercial.index',
@@ -363,6 +373,11 @@
         <div class="stat">
             <strong>{{ $counts['services'] }}</strong>
             <span>Service-existence reviews</span>
+        </div>
+
+        <div class="stat">
+            <strong>{{ $counts['composite'] }}</strong>
+            <span>Composite evidence reviews</span>
         </div>
 
         <div class="stat">
@@ -781,6 +796,175 @@
                 <strong>
                     No commercial service candidates
                     currently need human review.
+                </strong>
+            </div>
+        @endforelse
+    @elseif ($queue === 'composite')
+        @forelse ($compositeCandidates as $assessment)
+            @php
+                $candidate = $assessment->candidate;
+
+                $evidenceItems = collect(
+                    $candidate->invoiceItemIds
+                )
+                    ->map(
+                        fn ($id) =>
+                            $compositeEvidence
+                                ->get(
+                                    (string) $id
+                                )
+                    )
+                    ->filter()
+                    ->sortByDesc(
+                        fn ($item) =>
+                            $item
+                                ->invoice
+                                ?->invoice_date
+                                ?->timestamp
+                            ?? 0
+                    )
+                    ->values();
+            @endphp
+
+            <article class="candidate">
+                <div class="candidate-top">
+                    <div>
+                        <div class="service-type">
+                            Composite commercial evidence
+                        </div>
+
+                        <h2>
+                            {{ $candidate->clientName }}
+                        </h2>
+
+                        @if ($candidate->serviceHint)
+                            <div class="muted">
+                                Hint:
+                                {{ $candidate->serviceHint }}
+                            </div>
+                        @endif
+                    </div>
+
+                    <div>
+                        <div class="value">
+                            £{{ number_format(
+                                (float) $candidate
+                                    ->signedObservedNet,
+                                2
+                            ) }}
+                        </div>
+
+                        <div class="value-label">
+                            source invoice evidence
+                        </div>
+                    </div>
+                </div>
+
+                <div class="badges">
+                    <span class="badge recently_observed">
+                        Needs decomposition
+                    </span>
+
+                    <span class="badge">
+                        {{ $candidate->evidenceCount }}
+                        evidence item(s)
+                    </span>
+
+                    @foreach (
+                        $candidate->commercialComponents
+                        as $component
+                    )
+                        <span class="badge">
+                            {{ str_replace(
+                                '_',
+                                ' ',
+                                $component
+                            ) }}
+                        </span>
+                    @endforeach
+                </div>
+
+                <div class="truth-boundary">
+                    This source evidence spans multiple material
+                    commercial activities. The full invoice value
+                    cannot truthfully be assigned to any one
+                    service, project or component. It contributes
+                    no current recurring commercial value and
+                    cannot create, merge or update canonical truth
+                    until a human decomposition establishes the
+                    component allocation.
+                </div>
+
+                <details>
+                    <summary>
+                        Review exact composite invoice evidence
+                        ({{ $evidenceItems->count() }})
+                    </summary>
+
+                    <table class="evidence-table">
+                        <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Description</th>
+                            <th>Qty</th>
+                            <th>Unit</th>
+                            <th>Net</th>
+                        </tr>
+                        </thead>
+
+                        <tbody>
+                        @foreach ($evidenceItems as $item)
+                            <tr>
+                                <td>
+                                    {{ $item
+                                        ->invoice
+                                        ?->invoice_date
+                                        ?->format('d M Y')
+                                        ?? '—'
+                                    }}
+                                </td>
+
+                                <td>
+                                    {{ $item->description }}
+                                </td>
+
+                                <td>
+                                    {{ number_format(
+                                        (float) $item->quantity,
+                                        2
+                                    ) }}
+                                </td>
+
+                                <td class="money">
+                                    £{{ number_format(
+                                        (float) $item->unit_price,
+                                        2
+                                    ) }}
+                                </td>
+
+                                <td class="money">
+                                    £{{ number_format(
+                                        (float) $item->net_amount,
+                                        2
+                                    ) }}
+                                </td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                </details>
+
+                <div class="truth-boundary">
+                    Read-only review surface.
+                    No allocation or reconciliation action is
+                    available in this patch.
+                </div>
+            </article>
+        @empty
+            <div class="empty">
+                <strong>
+                    No composite commercial evidence currently
+                    requires human decomposition.
                 </strong>
             </div>
         @endforelse

@@ -227,6 +227,89 @@ class ClientServiceCandidateAssessmentServiceTest extends TestCase
         );
     }
 
+    public function test_composite_invoice_evidence_requires_decomposition_and_has_no_current_service_value(): void
+    {
+        $client =
+            Client::factory()->create();
+
+        $this->invoiceItem(
+            client: $client,
+            date: '2026-07-31',
+            description: 'Monthly Consultancy / Implementations / Support (retainer) / Website Development / App Development / SEO / Content .',
+            amount: 4000,
+        );
+
+        $assessment =
+            app(
+                ClientServiceCandidateAssessmentService::class
+            )
+                ->forClient(
+                    $client,
+                    CarbonImmutable::parse(
+                        '2026-09-02'
+                    )
+                )
+                ->first();
+
+        $this->assertSame(
+            'composite',
+            $assessment
+                ->candidate
+                ->serviceType
+        );
+
+        $this->assertSame(
+            'composite_candidate',
+            $assessment
+                ->candidate
+                ->commercialTreatment
+        );
+
+        $this->assertSame(
+            [
+                'retainer',
+                'support',
+                'development',
+                'seo',
+                'content',
+            ],
+            $assessment
+                ->candidate
+                ->commercialComponents
+        );
+
+        $this->assertTrue(
+            $assessment
+                ->candidate
+                ->isCompositeCandidate()
+        );
+
+        $this->assertFalse(
+            $assessment
+                ->candidate
+                ->isServiceCandidate()
+        );
+
+        $this->assertSame(
+            'needs_decomposition',
+            $assessment
+                ->promotionReadiness
+        );
+
+        $this->assertNull(
+            $assessment
+                ->currentMonthlyEquivalent
+        );
+
+        $this->assertStringContainsString(
+            'Human decomposition is required',
+            implode(
+                ' ',
+                $assessment->reasons
+            )
+        );
+    }
+
     public function test_pass_through_candidate_is_never_ready_for_client_service_promotion(): void
     {
         $client = Client::factory()->create();

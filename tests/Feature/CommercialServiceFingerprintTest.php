@@ -7,6 +7,259 @@ use Tests\TestCase;
 
 class CommercialServiceFingerprintTest extends TestCase
 {
+    public function test_existing_mml_retainer_identity_remains_stable_and_is_not_composite(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $result =
+            $service->fingerprint(
+                'Monthly Consultancy / Implementations / Support (retainer)'
+            );
+
+        $this->assertSame(
+            'retainer',
+            $result['service_type']
+        );
+
+        $this->assertSame(
+            'service_candidate',
+            $result['commercial_treatment']
+        );
+
+        $this->assertSame(
+            [
+                'retainer',
+                'support',
+            ],
+            $result['commercial_components']
+        );
+
+        $this->assertSame(
+            '62333b362d3cd311ee58d20257f4ef9c5b7e517b7a955b7bea0f1349b015e461',
+            $result['fingerprint']
+        );
+    }
+
+    public function test_mml_multi_activity_line_is_composite_not_wholesale_seo(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $result =
+            $service->fingerprint(
+                'Monthly Consultancy / Implementations / Support (retainer) / Website Development / App Development / SEO / Content .'
+            );
+
+        $this->assertSame(
+            'composite',
+            $result['service_type']
+        );
+
+        $this->assertSame(
+            'composite_candidate',
+            $result['commercial_treatment']
+        );
+
+        $this->assertSame(
+            [
+                'retainer',
+                'support',
+                'development',
+                'seo',
+                'content',
+            ],
+            $result['commercial_components']
+        );
+
+        $this->assertSame(
+            95,
+            $result['classification_confidence']
+        );
+    }
+
+    public function test_two_component_service_wording_does_not_trigger_composite_boundary(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $result =
+            $service->fingerprint(
+                'Monthly SEO & Content'
+            );
+
+        $this->assertSame(
+            'seo',
+            $result['service_type']
+        );
+
+        $this->assertSame(
+            'service_candidate',
+            $result['commercial_treatment']
+        );
+
+        $this->assertSame(
+            [
+                'seo',
+                'content',
+            ],
+            $result['commercial_components']
+        );
+    }
+
+    public function test_managed_service_bundle_can_be_detected_as_composite(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $result =
+            $service->fingerprint(
+                'Monthly Hosting / Microsoft 365 / Domain Renewal - example.com'
+            );
+
+        $this->assertSame(
+            'composite',
+            $result['service_type']
+        );
+
+        $this->assertSame(
+            'composite_candidate',
+            $result['commercial_treatment']
+        );
+
+        $this->assertEqualsCanonicalizing(
+            [
+                'hosting',
+                'microsoft365',
+                'domain',
+            ],
+            $result['commercial_components']
+        );
+    }
+
+    public function test_media_spend_mixed_with_management_and_seo_is_composite(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $result =
+            $service->fingerprint(
+                'PPC Management / Advertising Spend / SEO'
+            );
+
+        $this->assertSame(
+            'composite',
+            $result['service_type']
+        );
+
+        $this->assertSame(
+            'composite_candidate',
+            $result['commercial_treatment']
+        );
+
+        $this->assertEqualsCanonicalizing(
+            [
+                'media_spend',
+                'ppc_management',
+                'seo',
+            ],
+            $result['commercial_components']
+        );
+    }
+
+    public function test_content_delivery_network_is_not_mistaken_for_content_marketing(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $result =
+            $service->fingerprint(
+                'Content Delivery Network'
+            );
+
+        $this->assertSame(
+            'cdn',
+            $result['service_type']
+        );
+
+        $this->assertSame(
+            'managed_service_candidate',
+            $result['commercial_treatment']
+        );
+
+        $this->assertSame(
+            [
+                'cdn',
+            ],
+            $result['commercial_components']
+        );
+    }
+
+    public function test_separate_content_activity_can_coexist_with_cdn_in_composite_evidence(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $result =
+            $service->fingerprint(
+                'Content Delivery Network / SEO / Content / Support'
+            );
+
+        $this->assertSame(
+            'composite',
+            $result['service_type']
+        );
+
+        $this->assertEqualsCanonicalizing(
+            [
+                'cdn',
+                'seo',
+                'content',
+                'support',
+            ],
+            $result['commercial_components']
+        );
+    }
+
+    public function test_real_burtys_package_preserves_all_detectable_component_families(): void
+    {
+        $service = app(
+            CommercialServiceFingerprint::class
+        );
+
+        $result =
+            $service->fingerprint(
+                'F&F Package - site dev & annual hosting, inc domain reg & google workspace annual email.'
+            );
+
+        $this->assertSame(
+            'composite',
+            $result['service_type']
+        );
+
+        $this->assertSame(
+            'composite_candidate',
+            $result['commercial_treatment']
+        );
+
+        $this->assertEqualsCanonicalizing(
+            [
+                'development',
+                'hosting',
+                'google_workspace',
+                'domain',
+            ],
+            $result['commercial_components']
+        );
+    }
+
     public function test_hosting_wording_variants_collapse_to_same_service(): void
     {
         $service = app(

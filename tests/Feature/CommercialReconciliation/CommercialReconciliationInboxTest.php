@@ -79,6 +79,105 @@ class CommercialReconciliationInboxTest extends TestCase
             );
     }
 
+    public function test_composite_evidence_has_separate_read_only_decomposition_inbox(): void
+    {
+        $user =
+            User::factory()->create();
+
+        $client =
+            Client::factory()->create([
+                'name' => 'MML Law',
+            ]);
+
+        $this->invoiceItem(
+            client: $client,
+            date: '2026-07-31',
+            description: 'Monthly Consultancy / Implementations / Support (retainer) / Website Development / App Development / SEO / Content .',
+            amount: 4000
+        );
+
+        $response =
+            $this->actingAs($user)
+                ->get(
+                    route(
+                        'reconciliation.commercial.index',
+                        [
+                            'queue' => 'composite',
+                        ]
+                    )
+                );
+
+        $response
+            ->assertOk()
+            ->assertSee(
+                'Composite evidence 1'
+            )
+            ->assertSee(
+                'MML Law'
+            )
+            ->assertSee(
+                'Composite commercial evidence'
+            )
+            ->assertSee(
+                'Needs decomposition'
+            )
+            ->assertSee(
+                '£4,000.00'
+            )
+            ->assertSee(
+                'retainer'
+            )
+            ->assertSee(
+                'support'
+            )
+            ->assertSee(
+                'development'
+            )
+            ->assertSee(
+                'seo'
+            )
+            ->assertSee(
+                'content'
+            )
+            ->assertSee(
+                'Review exact composite invoice evidence'
+            )
+            ->assertSee(
+                'cannot truthfully be assigned'
+            )
+            ->assertSee(
+                'no current recurring commercial value'
+            )
+            ->assertSee(
+                'Read-only review surface'
+            )
+            ->assertDontSee(
+                'Confirm New Service'
+            )
+            ->assertDontSee(
+                'Confirm Historical Service'
+            )
+            ->assertDontSee(
+                'Merge Into Existing'
+            )
+            ->assertDontSee(
+                'Approve Attribution'
+            )
+            ->assertDontSee(
+                'Reject Evidence'
+            );
+
+        $this->assertSame(
+            0,
+            ClientService::count()
+        );
+
+        $this->assertSame(
+            0,
+            ClientServiceReconciliation::count()
+        );
+    }
+
     public function test_confirming_service_creates_canonical_service_and_attributes_exact_history(): void
     {
         $user =

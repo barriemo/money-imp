@@ -505,6 +505,153 @@ class CurrentCommercialPositionServiceTest extends TestCase
         );
     }
 
+    public function test_source_item_atomic_composite_evidence_is_excluded_from_supported_current_value_until_decomposed(): void
+    {
+        $client =
+            Client::factory()->create();
+
+        foreach (
+            [
+                '2026-06-30',
+                '2026-07-31',
+                '2026-08-31',
+            ] as $date
+        ) {
+            $this->invoiceItem(
+                client: $client,
+                date: $date,
+                description: 'Monthly Consultancy / Support / Website Development / SEO / Content',
+                amount: 4000,
+            );
+        }
+
+        $asOf =
+            CarbonImmutable::parse(
+                '2026-09-01'
+            );
+
+        $assessments =
+            app(
+                ClientServiceCandidateAssessmentService::class
+            )
+                ->forClient(
+                    $client,
+                    $asOf
+                )
+                ->filter(
+                    fn ($row) => $row
+                        ->candidate
+                        ->isCompositeCandidate()
+                )
+                ->values();
+
+        /*
+         * Composite evidence is deliberately source-item atomic.
+         *
+         * Even identical monthly descriptions remain independent
+         * one-observation candidates because each source invoice
+         * item may require a different human decomposition.
+         */
+        $this->assertCount(
+            3,
+            $assessments
+        );
+
+        $this->assertTrue(
+            $assessments->every(
+                fn ($assessment) => $assessment
+                    ->candidate
+                    ->evidenceCount
+                    === 1
+            )
+        );
+
+        $this->assertTrue(
+            $assessments->every(
+                fn ($assessment) => $assessment
+                    ->candidate
+                    ->cadence
+                    === 'one_off'
+            )
+        );
+
+        $this->assertTrue(
+            $assessments->every(
+                fn ($assessment) => ! $assessment
+                    ->cadenceEstablished
+            )
+        );
+
+        $this->assertTrue(
+            $assessments->every(
+                fn ($assessment) => $assessment
+                    ->promotionReadiness
+                    === 'needs_decomposition'
+            )
+        );
+
+        $this->assertTrue(
+            $assessments->every(
+                fn ($assessment) => $assessment
+                    ->currentMonthlyEquivalent
+                    === null
+            )
+        );
+
+        $this->assertSame(
+            12000.0,
+            round(
+                (float) $assessments->sum(
+                    fn ($assessment) => $assessment
+                        ->candidate
+                        ->signedObservedNet
+                ),
+                2
+            )
+        );
+
+        $position =
+            app(
+                CurrentCommercialPositionService::class
+            )->position(
+                $asOf
+            );
+
+        /*
+         * Composite source evidence remains outside ordinary
+         * service truth regardless of repeated billing dates.
+         */
+        $this->assertSame(
+            0,
+            $position
+                ->serviceCandidateCount
+        );
+
+        $this->assertSame(
+            0,
+            $position
+                ->recurringCandidateCount
+        );
+
+        $this->assertSame(
+            0,
+            $position
+                ->currentRecurringCandidateCount
+        );
+
+        $this->assertSame(
+            0.0,
+            $position
+                ->supportedCurrentMonthlyEquivalent
+        );
+
+        $this->assertSame(
+            0.0,
+            $position
+                ->unreconciledCurrentMonthlyEquivalent
+        );
+    }
+
     public function test_project_and_pass_through_candidates_are_excluded_from_commercial_position(): void
     {
         $client = Client::factory()->create();

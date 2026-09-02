@@ -13,9 +13,31 @@ class CommercialServiceFingerprint
             $description
         );
 
-        $serviceType = $this->serviceType(
-            $normalised
-        );
+        $commercialComponents =
+            $this->commercialComponents(
+                $normalised
+            );
+
+        /*
+         * A line spanning three or more materially different
+         * commercial component families is not safe to assign
+         * wholesale to whichever keyword happens to match first.
+         *
+         * Two-family descriptions remain with the existing
+         * classifier to avoid over-detecting ordinary bundled
+         * service wording such as consultancy + support.
+         */
+        $isComposite =
+            count(
+                $commercialComponents
+            ) >= 3;
+
+        $serviceType =
+            $isComposite
+                ? 'composite'
+                : $this->serviceType(
+                    $normalised
+                );
 
         $rawServiceHint = $this->serviceHint(
             $description
@@ -29,24 +51,50 @@ class CommercialServiceFingerprint
             $rawServiceHint
         );
 
+        /*
+         * Preserve the historic fingerprint formula for every
+         * non-composite service.
+         *
+         * Existing canonical reconciliations depend on those
+         * identities remaining stable.
+         */
+        $fingerprintParts = [
+            $serviceType,
+            strtolower(
+                $identityHint
+                ?? ''
+            ),
+        ];
+
+        if ($isComposite) {
+            $fingerprintParts[] =
+                implode(
+                    ',',
+                    $commercialComponents
+                );
+        }
+
         return [
             'service_type' => $serviceType,
+
             'service_hint' => $serviceHint,
+
+            'commercial_components' => $commercialComponents,
+
             'commercial_treatment' => $this->commercialTreatment(
                 $serviceType
             ),
+
             'classification_confidence' => $this->confidence(
                 $serviceType
             ),
+
             'fingerprint' => hash(
                 'sha256',
-                implode('|', [
-                    $serviceType,
-                    strtolower(
-                        $identityHint
-                        ?? ''
-                    ),
-                ])
+                implode(
+                    '|',
+                    $fingerprintParts
+                )
             ),
         ];
     }
@@ -85,6 +133,244 @@ class CommercialServiceFingerprint
             )
             ->trim()
             ->toString();
+    }
+
+    /**
+     * Material commercial activity families explicitly present
+     * in one source invoice description.
+     *
+     * This identifies evidence shape only. It does not allocate
+     * money between the components.
+     */
+    private function commercialComponents(
+        string $description
+    ): array {
+        $components = [];
+
+        if (
+            Str::contains(
+                $description,
+                [
+                    'retainer',
+                    'consultancy',
+                ]
+            )
+        ) {
+            $components[] = 'retainer';
+        }
+
+        if (
+            Str::contains(
+                $description,
+                [
+                    'support',
+                    'maintenance',
+                ]
+            )
+        ) {
+            $components[] = 'support';
+        }
+
+        if (
+            Str::contains(
+                $description,
+                [
+                    'web design',
+                    'website design',
+                    'web development',
+                    'website development',
+                    'web dev',
+                    'website dev',
+                    'site dev',
+                    'app development',
+                    'application development',
+                    'app dev',
+                    'application dev',
+                    'development work',
+                    'microsite',
+                ]
+            )
+        ) {
+            $components[] = 'development';
+        }
+
+        if (
+            Str::contains(
+                $description,
+                [
+                    'seo',
+                    'search engine optimisation',
+                    'search engine optimization',
+                ]
+            )
+        ) {
+            $components[] = 'seo';
+        }
+
+        /*
+         * "Content delivery network" is CDN evidence, not a
+         * content-marketing component.
+         *
+         * Remove the CDN phrase before looking for a separately
+         * named content activity so a line such as
+         * "Content Delivery Network / SEO / Content" can still
+         * identify both CDN and content truthfully.
+         */
+        $contentDescription =
+            Str::of(
+                $description
+            )
+                ->replace(
+                    'content delivery network',
+                    ''
+                )
+                ->toString();
+
+        if (
+            Str::contains(
+                $contentDescription,
+                [
+                    'content marketing',
+                    'content creation',
+                    'copywriting',
+                ]
+            )
+            || preg_match(
+                '/\bcontent\b/i',
+                $contentDescription
+            ) === 1
+        ) {
+            $components[] = 'content';
+        }
+
+        if (
+            Str::contains(
+                $description,
+                [
+                    'advertising spend',
+                    'advertising budget',
+                    'ad spend',
+                    'media spend',
+                    'media budget',
+                ]
+            )
+        ) {
+            $components[] = 'media_spend';
+        }
+
+        if (
+            Str::contains(
+                $description,
+                [
+                    'ppc management',
+                    'paid management - ppc',
+                    'paid search management',
+                    'google ads management',
+                ]
+            )
+        ) {
+            $components[] = 'ppc_management';
+        }
+
+        if (
+            Str::contains(
+                $description,
+                [
+                    'social media',
+                    'social management',
+                ]
+            )
+        ) {
+            $components[] = 'social_media';
+        }
+
+        if (
+            Str::contains(
+                $description,
+                [
+                    'hosting',
+                    'server hosting',
+                    'website hosting',
+                ]
+            )
+        ) {
+            $components[] = 'hosting';
+        }
+
+        if (
+            Str::contains(
+                $description,
+                [
+                    'microsoft 365',
+                    'office 365',
+                    'mso365',
+                    'm365',
+                    'exchange online',
+                ]
+            )
+        ) {
+            $components[] = 'microsoft365';
+        }
+
+        if (
+            Str::contains(
+                $description,
+                [
+                    'google workspace',
+                    'g suite',
+                ]
+            )
+        ) {
+            $components[] = 'google_workspace';
+        }
+
+        if (
+            Str::contains(
+                $description,
+                [
+                    'mailchimp',
+                    'postmark',
+                ]
+            )
+        ) {
+            $components[] = 'email_platform';
+        }
+
+        if (
+            Str::contains(
+                $description,
+                [
+                    'nitro cdn',
+                    'cdn',
+                    'content delivery network',
+                ]
+            )
+        ) {
+            $components[] = 'cdn';
+        }
+
+        if (
+            Str::contains(
+                $description,
+                [
+                    'domain management',
+                    'domain name',
+                    'domain registration',
+                    'domain renewal',
+                    'domain ',
+                    'domains ',
+                    ' domain',
+                ]
+            )
+        ) {
+            $components[] = 'domain';
+        }
+
+        return array_values(
+            array_unique(
+                $components
+            )
+        );
     }
 
     private function serviceType(
@@ -233,6 +519,8 @@ class CommercialServiceFingerprint
         string $serviceType
     ): string {
         return match ($serviceType) {
+            'composite' => 'composite_candidate',
+
             'media_spend' => 'pass_through_candidate',
 
             'development' => 'project_candidate',
@@ -258,6 +546,8 @@ class CommercialServiceFingerprint
         string $serviceType
     ): int {
         return match ($serviceType) {
+            'composite' => 95,
+
             'hosting',
             'microsoft365',
             'google_workspace',

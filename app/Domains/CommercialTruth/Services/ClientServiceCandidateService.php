@@ -106,12 +106,18 @@ final class ClientServiceCandidateService
                         'commercial_treatment' => $classification[
                             'commercial_treatment'
                         ],
+
+                        'commercial_components' => $classification[
+                            'commercial_components'
+                        ] ?? [],
+
                         'classification_confidence' => (int) $classification[
                             'classification_confidence'
                         ],
                         'group_key' => $this->groupKey(
                             $classification,
-                            (string) $item->description
+                            (string) $item->description,
+                            (string) $item->invoice_item_id
                         ),
                     ];
                 }
@@ -239,13 +245,39 @@ final class ClientServiceCandidateService
             cadenceConfidence: (int) $cadence[
                 'confidence'
             ],
+            commercialComponents: $first[
+                'commercial_components'
+            ],
         );
     }
 
     private function groupKey(
         array $classification,
-        string $description
+        string $description,
+        string $invoiceItemId
     ): string {
+        /*
+         * Composite evidence is source-item atomic.
+         *
+         * Two invoice lines with identical wording may later
+         * require different human decompositions. They must not
+         * silently collapse into one candidate merely because
+         * their descriptions or component families match.
+         */
+        if (
+            $classification[
+                'commercial_treatment'
+            ] === 'composite_candidate'
+        ) {
+            return hash(
+                'sha256',
+                implode('|', [
+                    'composite_evidence',
+                    $invoiceItemId,
+                ])
+            );
+        }
+
         /*
          * Recurring/managed services may legitimately collapse
          * across repeated invoice wording via the fingerprint.

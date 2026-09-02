@@ -90,8 +90,10 @@ final class ClientServiceCandidateAssessmentService
                 ->freshness;
 
         $currentMonthlyEquivalent =
-            $billingEvidence
-                ->currentMonthlyEquivalent;
+            $candidate->isCompositeCandidate()
+                ? null
+                : $billingEvidence
+                    ->currentMonthlyEquivalent;
 
         $promotionReadiness =
             $this->promotionReadiness(
@@ -123,6 +125,12 @@ final class ClientServiceCandidateAssessmentService
         bool $cadenceEstablished,
         string $freshness
     ): string {
+        if (
+            $candidate->isCompositeCandidate()
+        ) {
+            return 'needs_decomposition';
+        }
+
         if (
             ! $candidate->isServiceCandidate()
         ) {
@@ -168,6 +176,25 @@ final class ClientServiceCandidateAssessmentService
                     ->classificationConfidence
             ),
         ];
+
+        if (
+            $candidate->isCompositeCandidate()
+        ) {
+            $reasons[] = sprintf(
+                'Composite commercial evidence spans %d material component families: %s. Human decomposition is required before canonical promotion.',
+                count(
+                    $candidate
+                        ->commercialComponents
+                ),
+                implode(
+                    ', ',
+                    $candidate
+                        ->commercialComponents
+                )
+            );
+
+            return $reasons;
+        }
 
         if (
             ! $candidate->isServiceCandidate()

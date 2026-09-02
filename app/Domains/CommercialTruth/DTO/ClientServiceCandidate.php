@@ -23,7 +23,14 @@ final class ClientServiceCandidate
         public readonly float $monthlyEquivalent,
         public readonly int $classificationConfidence,
         public readonly int $cadenceConfidence,
+        public readonly array $commercialComponents = [],
     ) {}
+
+    public function isCompositeCandidate(): bool
+    {
+        return $this->commercialTreatment
+            === 'composite_candidate';
+    }
 
     public function isServiceCandidate(): bool
     {

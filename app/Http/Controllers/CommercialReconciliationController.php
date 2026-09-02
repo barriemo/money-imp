@@ -8,6 +8,7 @@ use App\Domains\CommercialTruth\Services\ClientServiceAttributionReviewQueueServ
 use App\Domains\CommercialTruth\Services\ClientServiceAttributionReviewService;
 use App\Domains\CommercialTruth\Services\ClientServiceReconciliationQueueService;
 use App\Domains\CommercialTruth\Services\ClientServiceReconciliationService;
+use App\Domains\CommercialTruth\Services\CompositeCommercialEvidenceReviewQueueService;
 use App\Models\AccountingInvoiceItem;
 use App\Models\ClientService;
 use Carbon\CarbonImmutable;
@@ -22,6 +23,7 @@ class CommercialReconciliationController extends Controller
         Request $request,
         ClientServiceReconciliationQueueService $serviceQueue,
         ClientServiceAttributionReviewQueueService $attributionQueue,
+        CompositeCommercialEvidenceReviewQueueService $compositeQueue,
     ): View {
         $queue =
             (string) $request->query(
@@ -34,6 +36,7 @@ class CommercialReconciliationController extends Controller
                 $queue,
                 [
                     'services',
+                    'composite',
                     'attribution',
                     'status',
                 ],
@@ -50,6 +53,14 @@ class CommercialReconciliationController extends Controller
         $serviceCandidates =
             $this->sortServiceCandidates(
                 $serviceQueue
+                    ->ready(
+                        $asOf
+                    )
+            );
+
+        $compositeCandidates =
+            $this->sortServiceCandidates(
+                $compositeQueue
                     ->ready(
                         $asOf
                     )
@@ -93,12 +104,18 @@ class CommercialReconciliationController extends Controller
 
                 'serviceCandidates' => $serviceCandidates,
 
+                'compositeCandidates' => $compositeCandidates,
+
                 'attributionCandidates' => $attributionCandidates,
 
                 'statusCandidates' => $statusCandidates,
 
                 'serviceEvidence' => $this->serviceEvidence(
                     $serviceCandidates
+                ),
+
+                'compositeEvidence' => $this->serviceEvidence(
+                    $compositeCandidates
                 ),
 
                 'attributionEvidence' => $this->attributionEvidence(
@@ -113,6 +130,9 @@ class CommercialReconciliationController extends Controller
 
                 'counts' => [
                     'services' => $serviceCandidates
+                        ->count(),
+
+                    'composite' => $compositeCandidates
                         ->count(),
 
                     'attribution' => $attributionCandidates
