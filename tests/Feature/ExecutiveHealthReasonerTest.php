@@ -2,8 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Domains\CommercialTruth\Services\CommercialAgreementCoverageReviewService;
 use App\Domains\Executive\ExecutiveHealthReasoner;
 use App\Domains\Executive\ExecutiveQuestion;
+use App\Models\Client;
+use App\Models\ClientService;
+use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -39,6 +44,71 @@ class ExecutiveHealthReasonerTest extends TestCase
 
         $this->assertContains(
             'Contracted commercial terms are not yet established.',
+            $answer->missingEvidence
+        );
+    }
+
+    public function test_complete_explicit_zero_contract_coverage_is_reported_as_zero_not_unknown(): void
+    {
+        $client =
+            Client::factory()->create();
+
+        $service =
+            ClientService::create([
+                'client_id' => $client->id,
+
+                'name' => 'Ad Hoc Support',
+
+                'type' => 'service',
+
+                'status' => 'active',
+            ]);
+
+        $reviewer =
+            User::factory()->create();
+
+        app(
+            CommercialAgreementCoverageReviewService::class
+        )->confirmNoCurrentContract(
+            clientServiceId: $service->id,
+
+            effectiveFrom: CarbonImmutable::parse(
+                '2020-01-01'
+            ),
+
+            reviewedBy: $reviewer->id,
+
+            source: 'owner_review',
+
+            reason: 'Explicit complete zero contracted coverage.'
+        );
+
+        $answer =
+            app(
+                ExecutiveHealthReasoner::class
+            )->answer(
+                ExecutiveQuestion::canKeepLightsOn()
+            );
+
+        $this->assertArrayHasKey(
+            'recurring_monthly_equivalent',
+            $answer->metrics
+        );
+
+        $this->assertSame(
+            0.0,
+            $answer->metrics[
+                'recurring_monthly_equivalent'
+            ]
+        );
+
+        $this->assertNotContains(
+            'Contracted commercial terms are not yet established.',
+            $answer->missingEvidence
+        );
+
+        $this->assertNotContains(
+            'Some contracted commercial terms are confirmed, but contracted-truth coverage is not yet complete.',
             $answer->missingEvidence
         );
     }

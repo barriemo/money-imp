@@ -6,6 +6,7 @@ use App\Domains\CommercialTruth\Services\ClientServiceAttributionReviewQueueServ
 use App\Domains\CommercialTruth\Services\ClientServiceAttributionReviewService;
 use App\Domains\CommercialTruth\Services\ClientServiceCandidateAssessmentService;
 use App\Domains\CommercialTruth\Services\ClientServiceReconciliationService;
+use App\Domains\CommercialTruth\Services\CommercialAgreementCoverageReviewService;
 use App\Domains\CommercialTruth\Services\CurrentCommercialPositionService;
 use App\Models\AccountingInvoice;
 use App\Models\AccountingInvoiceItem;
@@ -502,6 +503,83 @@ class CurrentCommercialPositionServiceTest extends TestCase
         $this->assertNull(
             $approved
                 ->contractedMonthlyValue
+        );
+    }
+
+    public function test_position_propagates_as_of_date_into_contracted_coverage_truth(): void
+    {
+        $client =
+            Client::factory()->create();
+
+        $service =
+            ClientService::create([
+                'client_id' => $client->id,
+
+                'name' => 'Ad Hoc Support',
+
+                'type' => 'service',
+
+                'status' => 'active',
+            ]);
+
+        $reviewer =
+            User::factory()->create();
+
+        app(
+            CommercialAgreementCoverageReviewService::class
+        )->confirmNoCurrentContract(
+            clientServiceId: $service->id,
+
+            effectiveFrom: CarbonImmutable::parse(
+                '2026-10-01'
+            ),
+
+            reviewedBy: $reviewer->id,
+
+            source: 'owner_review',
+
+            reason: 'Future coverage review.'
+        );
+
+        $september =
+            app(
+                CurrentCommercialPositionService::class
+            )->position(
+                CarbonImmutable::parse(
+                    '2026-09-03'
+                )
+            );
+
+        $this->assertNull(
+            $september
+                ->contractedMonthlyValue
+        );
+
+        $this->assertSame(
+            'not_established',
+            $september
+                ->contractedValueStatus
+        );
+
+        $october =
+            app(
+                CurrentCommercialPositionService::class
+            )->position(
+                CarbonImmutable::parse(
+                    '2026-10-02'
+                )
+            );
+
+        $this->assertSame(
+            0.0,
+            $october
+                ->contractedMonthlyValue
+        );
+
+        $this->assertSame(
+            'reconciled',
+            $october
+                ->contractedValueStatus
         );
     }
 

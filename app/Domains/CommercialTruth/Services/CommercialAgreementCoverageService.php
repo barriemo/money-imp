@@ -68,6 +68,7 @@ final class CommercialAgreementCoverageService
         $currentReviews =
             $this->currentReviews(
                 reviews: $reviews,
+
                 asOf: $asOf
             );
 
@@ -86,16 +87,49 @@ final class CommercialAgreementCoverageService
         foreach (
             $currentReviews as $review
         ) {
-            $this->assertConsistent(
-                review: $review,
-                currentAgreement: $currentAgreements->get(
-                    (string) $review
-                        ->client_service_id
-                )
+            $this->assertReviewShape(
+                $review
             );
         }
 
+        /*
+         * A terminal outcome is only terminal while it still agrees
+         * with current contractual truth.
+         *
+         * Example:
+         *
+         * September:
+         *   coverage => confirmed_terms A
+         *   agreement => A
+         *
+         * October:
+         *   agreement A is superseded by B
+         *
+         * Until a matching October coverage review is recorded, the
+         * September coverage review is stale and the service returns
+         * to the unresolved denominator.
+         *
+         * Reads must not crash merely because a legitimate new
+         * agreement assertion now requires a new human coverage
+         * review.
+         */
         $terminal =
+            $currentReviews
+                ->filter(
+                    fn (
+                        CommercialAgreementCoverageReview $review
+                    ) => $this->isTerminalForCurrentState(
+                        review: $review,
+
+                        currentAgreement: $currentAgreements->get(
+                            (string) $review
+                                ->client_service_id
+                        )
+                    )
+                )
+                ->values();
+
+        $staleTerminal =
             $currentReviews
                 ->filter(
                     fn (
@@ -105,11 +139,19 @@ final class CommercialAgreementCoverageService
                         self::TERMINAL_OUTCOMES,
                         true
                     )
+                    && ! $this->isTerminalForCurrentState(
+                        review: $review,
+
+                        currentAgreement: $currentAgreements->get(
+                            (string) $review
+                                ->client_service_id
+                        )
+                    )
                 )
                 ->values();
 
         $confirmedTerms =
-            $currentReviews
+            $terminal
                 ->where(
                     'outcome',
                     self::OUTCOME_CONFIRMED_TERMS
@@ -117,7 +159,7 @@ final class CommercialAgreementCoverageService
                 ->values();
 
         $noCurrentContract =
-            $currentReviews
+            $terminal
                 ->where(
                     'outcome',
                     self::OUTCOME_NO_CURRENT_CONTRACT
@@ -132,8 +174,8 @@ final class CommercialAgreementCoverageService
                 )
                 ->values();
 
-        $currentByService =
-            $currentReviews
+        $terminalByService =
+            $terminal
                 ->keyBy(
                     fn (
                         CommercialAgreementCoverageReview $review
@@ -143,32 +185,20 @@ final class CommercialAgreementCoverageService
 
         $unresolved =
             $scope
-                ->filter(
-                    function (
+                ->reject(
+                    fn (
                         ClientService $service
-                    ) use (
-                        $currentByService
-                    ): bool {
-                        $review =
-                            $currentByService
-                                ->get(
-                                    (string) $service->id
-                                );
-
-                        return $review === null
-                            || ! in_array(
-                                $review->outcome,
-                                self::TERMINAL_OUTCOMES,
-                                true
-                            );
-                    }
+                    ) => $terminalByService->has(
+                        (string) $service->id
+                    )
                 )
                 ->values();
 
         /*
          * Zero services does not prove a £0 contracted business.
          *
-         * A complete denominator must first exist.
+         * Complete coverage requires a real, non-empty denominator
+         * and a currently valid terminal review for every service.
          */
         $complete =
             $scope->isNotEmpty()
@@ -195,6 +225,8 @@ final class CommercialAgreementCoverageService
 
             'terminal_reviews' => $terminal,
 
+            'stale_terminal_reviews' => $staleTerminal,
+
             'unresolved_services' => $unresolved,
 
             'scope_count' => $scope->count(),
@@ -208,6 +240,8 @@ final class CommercialAgreementCoverageService
             'no_current_contract_count' => $noCurrentContract->count(),
 
             'needs_more_evidence_count' => $needsMoreEvidence->count(),
+
+            'stale_terminal_review_count' => $staleTerminal->count(),
 
             'unreviewed_count' => max(
                 0,
@@ -313,8 +347,11 @@ final class CommercialAgreementCoverageService
                     }
 
                     /*
-                     * Future coverage decisions do not hide today's
-                     * current review.
+                     * Only an eligible successor supersedes the earlier
+                     * review for this as-of date.
+                     *
+                     * A future review therefore cannot hide today's
+                     * current coverage decision.
                      */
                     $supersededIds =
                         $eligible
@@ -354,10 +391,22 @@ final class CommercialAgreementCoverageService
             ->values();
     }
 
-    private function assertConsistent(
-        CommercialAgreementCoverageReview $review,
-        ?CommercialAgreement $currentAgreement
+    private function assertReviewShape(
+        CommercialAgreementCoverageReview $review
     ): void {
+        if (
+            $review->clientService
+            === null
+            || (string) $review->client_id
+                !== (string) $review
+                    ->clientService
+                    ->client_id
+        ) {
+            throw new LogicException(
+                'Commercial agreement coverage review does not match its canonical client service.'
+            );
+        }
+
         if (
             $review->outcome
             === self::OUTCOME_CONFIRMED_TERMS
@@ -365,15 +414,16 @@ final class CommercialAgreementCoverageService
             if (
                 $review->commercial_agreement_id
                 === null
-                || $currentAgreement === null
+                || $review->commercialAgreement
+                    === null
                 || (string) $review
-                    ->commercial_agreement_id
-                    !== (string) $currentAgreement->id
-                || $currentAgreement->status
-                    !== 'confirmed'
+                    ->commercialAgreement
+                    ->client_service_id
+                    !== (string) $review
+                        ->client_service_id
             ) {
                 throw new LogicException(
-                    'Confirmed contract coverage does not reference the current confirmed commercial agreement assertion.'
+                    'Confirmed contract coverage must reference a commercial agreement for the same canonical service.'
                 );
             }
 
@@ -388,17 +438,34 @@ final class CommercialAgreementCoverageService
                 'Only confirmed_terms coverage may reference a commercial agreement.'
             );
         }
+    }
 
-        if (
+    private function isTerminalForCurrentState(
+        CommercialAgreementCoverageReview $review,
+        ?CommercialAgreement $currentAgreement
+    ): bool {
+        return match (
             $review->outcome
-            === self::OUTCOME_NO_CURRENT_CONTRACT
-            && $currentAgreement !== null
-            && $currentAgreement->status
-                === 'confirmed'
         ) {
-            throw new LogicException(
-                'No-current-contract coverage contradicts a current confirmed commercial agreement.'
-            );
-        }
+            self::OUTCOME_CONFIRMED_TERMS => $review->commercial_agreement_id
+                    !== null
+                && $currentAgreement
+                    !== null
+                && $currentAgreement->status
+                    === 'confirmed'
+                && (string) $review
+                    ->commercial_agreement_id
+                    === (string) $currentAgreement
+                        ->id,
+
+            self::OUTCOME_NO_CURRENT_CONTRACT => ! (
+                $currentAgreement
+                    !== null
+                && $currentAgreement->status
+                    === 'confirmed'
+            ),
+
+            default => false,
+        };
     }
 }

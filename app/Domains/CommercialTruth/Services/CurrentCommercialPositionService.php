@@ -124,7 +124,9 @@ final class CurrentCommercialPositionService
 
         $contracted =
             $this->contractedTruth
-                ->summary();
+                ->summary(
+                    $asOf
+                );
 
         /*
          * BillingRule has a soft-delete column but currently

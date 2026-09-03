@@ -578,6 +578,147 @@ class CommercialAgreementCoverageServiceTest extends TestCase
         );
     }
 
+    public function test_terminal_review_becomes_unresolved_when_current_contract_changes_without_matching_coverage_review(): void
+    {
+        $client =
+            Client::factory()->create();
+
+        $reviewer =
+            User::factory()->create();
+
+        $service =
+            $this->service(
+                client: $client,
+
+                name: 'Monthly Support'
+            );
+
+        $agreements =
+            app(
+                CommercialAgreementAssertionService::class
+            );
+
+        $first =
+            $agreements->confirm(
+                clientServiceId: $service->id,
+
+                cadence: 'monthly',
+
+                contractedAmountPence: 50000,
+
+                effectiveFrom: CarbonImmutable::parse(
+                    '2026-01-01'
+                ),
+
+                reviewedBy: $reviewer->id,
+
+                source: 'signed_agreement',
+
+                reason: 'Original monthly terms.'
+            );
+
+        app(
+            CommercialAgreementCoverageReviewService::class
+        )->confirmTerms(
+            clientServiceId: $service->id,
+
+            commercialAgreementId: $first->id,
+
+            effectiveFrom: CarbonImmutable::parse(
+                '2026-09-01'
+            ),
+
+            reviewedBy: $reviewer->id,
+
+            source: 'owner_review',
+
+            reason: 'September terms explicitly reviewed.'
+        );
+
+        $september =
+            app(
+                CommercialAgreementCoverageService::class
+            )->summary(
+                CarbonImmutable::parse(
+                    '2026-09-03'
+                )
+            );
+
+        $this->assertTrue(
+            $september['complete']
+        );
+
+        $this->assertSame(
+            0,
+            $september[
+                'stale_terminal_review_count'
+            ]
+        );
+
+        $agreements->supersede(
+            commercialAgreementId: $first->id,
+
+            cadence: 'monthly',
+
+            contractedAmountPence: 75000,
+
+            effectiveFrom: CarbonImmutable::parse(
+                '2026-10-01'
+            ),
+
+            reviewedBy: $reviewer->id,
+
+            source: 'email',
+
+            reason: 'New October terms.'
+        );
+
+        /*
+         * The prior coverage assertion is still valid history, but
+         * it no longer closes the October denominator.
+         *
+         * This must become unresolved rather than making reads fail.
+         */
+        $october =
+            app(
+                CommercialAgreementCoverageService::class
+            )->summary(
+                CarbonImmutable::parse(
+                    '2026-10-02'
+                )
+            );
+
+        $this->assertFalse(
+            $october['complete']
+        );
+
+        $this->assertSame(
+            0,
+            $october[
+                'terminal_count'
+            ]
+        );
+
+        $this->assertSame(
+            1,
+            $october[
+                'stale_terminal_review_count'
+            ]
+        );
+
+        $this->assertSame(
+            1,
+            $october[
+                'unresolved_count'
+            ]
+        );
+
+        $this->assertSame(
+            'incomplete',
+            $october['status']
+        );
+    }
+
     private function service(
         Client $client,
         string $name,
