@@ -25,6 +25,13 @@ class ClientService extends MoneyImpModel
         return $this->belongsTo(Client::class);
     }
 
+    public function commercialAgreementCoverageReviews(): HasMany
+    {
+        return $this->hasMany(
+            CommercialAgreementCoverageReview::class
+        );
+    }
+
     public function commercialAgreements(): HasMany
     {
         return $this->hasMany(

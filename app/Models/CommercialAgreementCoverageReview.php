@@ -3,24 +3,19 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use LogicException;
 
-class CommercialAgreement extends MoneyImpModel
+class CommercialAgreementCoverageReview extends MoneyImpModel
 {
     public const UPDATED_AT = null;
 
     protected function casts(): array
     {
         return [
-            'contracted_amount_pence' => 'integer',
-            'monthly_equivalent' => 'decimal:2',
             'effective_from' => 'date',
-            'effective_to' => 'date',
-            'renews_on' => 'date',
             'reviewed_at' => 'datetime',
-            'terms_snapshot' => 'array',
+            'evidence_snapshot' => 'array',
             'metadata' => 'array',
         ];
     }
@@ -30,7 +25,7 @@ class CommercialAgreement extends MoneyImpModel
         static::updating(
             function (): never {
                 throw new LogicException(
-                    'Commercial agreement assertions are immutable. Create a superseding assertion instead.'
+                    'Commercial agreement coverage reviews are immutable. Create a superseding review instead.'
                 );
             }
         );
@@ -38,7 +33,7 @@ class CommercialAgreement extends MoneyImpModel
         static::deleting(
             function (): never {
                 throw new LogicException(
-                    'Commercial agreement assertions are immutable and cannot be deleted.'
+                    'Commercial agreement coverage reviews are immutable and cannot be deleted.'
                 );
             }
         );
@@ -58,6 +53,13 @@ class CommercialAgreement extends MoneyImpModel
         );
     }
 
+    public function commercialAgreement(): BelongsTo
+    {
+        return $this->belongsTo(
+            CommercialAgreement::class
+        );
+    }
+
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(
@@ -70,7 +72,7 @@ class CommercialAgreement extends MoneyImpModel
     {
         return $this->belongsTo(
             self::class,
-            'supersedes_commercial_agreement_id'
+            'supersedes_commercial_agreement_coverage_review_id'
         );
     }
 
@@ -78,21 +80,7 @@ class CommercialAgreement extends MoneyImpModel
     {
         return $this->hasOne(
             self::class,
-            'supersedes_commercial_agreement_id'
-        );
-    }
-
-    public function coverageReviews(): HasMany
-    {
-        return $this->hasMany(
-            CommercialAgreementCoverageReview::class
-        );
-    }
-
-    public function evidence(): HasMany
-    {
-        return $this->hasMany(
-            CommercialAgreementEvidence::class
+            'supersedes_commercial_agreement_coverage_review_id'
         );
     }
 }
