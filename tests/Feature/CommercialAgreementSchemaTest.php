@@ -94,7 +94,7 @@ class CommercialAgreementSchemaTest extends TestCase
         );
 
         $this->assertSame(
-            'SET NULL',
+            'RESTRICT',
             strtoupper(
                 $agreementForeignKeys[
                     'reviewed_by'
@@ -120,7 +120,7 @@ class CommercialAgreementSchemaTest extends TestCase
         );
 
         $this->assertSame(
-            'SET NULL',
+            'RESTRICT',
             strtoupper(
                 $evidenceForeignKeys[
                     'recorded_by'

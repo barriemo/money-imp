@@ -210,7 +210,7 @@ return new class extends Migration
                     ->foreign('reviewed_by')
                     ->references('id')
                     ->on('users')
-                    ->nullOnDelete();
+                    ->restrictOnDelete();
 
                 /*
                  * One immutable assertion may have at most one direct
@@ -317,7 +317,7 @@ return new class extends Migration
                     ->foreign('recorded_by')
                     ->references('id')
                     ->on('users')
-                    ->nullOnDelete();
+                    ->restrictOnDelete();
 
                 $table->index(
                     [

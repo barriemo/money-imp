@@ -656,6 +656,43 @@ class CommercialAgreementAssertionServiceTest extends TestCase
             ]);
     }
 
+    public function test_referenced_reviewer_cannot_be_hard_deleted_from_audit_history(): void
+    {
+        [$service, $reviewer] =
+            $this->serviceAndReviewer();
+
+        app(
+            CommercialAgreementAssertionService::class
+        )->confirm(
+            clientServiceId: $service->id,
+
+            cadence: 'monthly',
+
+            contractedAmountPence: 7500,
+
+            effectiveFrom: CarbonImmutable::parse(
+                '2026-01-01'
+            ),
+
+            reviewedBy: $reviewer->id,
+
+            source: 'owner',
+
+            reason: 'Reviewer identity belongs to immutable audit history.'
+        );
+
+        $this->expectException(
+            QueryException::class
+        );
+
+        DB::table('users')
+            ->where(
+                'id',
+                $reviewer->id
+            )
+            ->delete();
+    }
+
     private function serviceAndReviewer(): array
     {
         $client =
