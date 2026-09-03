@@ -217,6 +217,16 @@ final class CeoSignalReassessmentService
         array $previousPayload,
         array $currentPayload
     ): bool {
+        $previousPayload =
+            $this->normalisePaymentEvidenceSchema(
+                $previousPayload
+            );
+
+        $currentPayload =
+            $this->normalisePaymentEvidenceSchema(
+                $currentPayload
+            );
+
         $previousEvidence =
             array_intersect_key(
                 $previousPayload,
@@ -233,6 +243,45 @@ final class CeoSignalReassessmentService
         ) === $this->fingerprint(
             $currentPayload
         );
+    }
+
+    private function normalisePaymentEvidenceSchema(
+        array $payload
+    ): array {
+        /*
+         * Stage 4A adds reconciliation-aware projection fields.
+         *
+         * Historic search events predate these fields. Treat their
+         * absence as the old no-approved-allocation semantics so a
+         * code deployment alone does not manufacture an evidence
+         * reassessment.
+         *
+         * As soon as approved payment evidence exists, the non-zero
+         * fields differ and the normal reassessment path records the
+         * material change.
+         */
+        $payload[
+            'confirmed_allocated_payment'
+        ] ??= 0.0;
+
+        $payload[
+            'allocation_uncovered_amount'
+        ] ??= (float) (
+            $payload[
+                'accounting_outstanding'
+            ]
+            ?? 0
+        );
+
+        $payload[
+            'approved_payment_count'
+        ] ??= 0;
+
+        $payload[
+            'source_outstanding_disagreement_count'
+        ] ??= 0;
+
+        return $payload;
     }
 
     private function fingerprint(

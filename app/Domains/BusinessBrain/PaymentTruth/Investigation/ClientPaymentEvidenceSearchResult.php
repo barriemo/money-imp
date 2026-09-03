@@ -19,6 +19,14 @@ final readonly class ClientPaymentEvidenceSearchResult
 
         public float $canonicalCash,
 
+        public float $confirmedAllocatedPayment,
+
+        public float $allocationUncoveredAmount,
+
+        public int $approvedPaymentCount,
+
+        public int $sourceOutstandingDisagreementCount,
+
         public ?string $firstInvoiceAt,
 
         public ?string $lastInvoiceAt,
@@ -68,6 +76,14 @@ final readonly class ClientPaymentEvidenceSearchResult
             'accounting_outstanding' => $this->accountingOutstanding,
 
             'canonical_cash' => $this->canonicalCash,
+
+            'confirmed_allocated_payment' => $this->confirmedAllocatedPayment,
+
+            'allocation_uncovered_amount' => $this->allocationUncoveredAmount,
+
+            'approved_payment_count' => $this->approvedPaymentCount,
+
+            'source_outstanding_disagreement_count' => $this->sourceOutstandingDisagreementCount,
 
             'first_invoice_at' => $this->firstInvoiceAt,
 

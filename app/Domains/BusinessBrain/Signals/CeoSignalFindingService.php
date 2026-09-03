@@ -87,6 +87,23 @@ final class CeoSignalFindingService
                 ?? 'unknown'
             );
 
+        if (
+            (int) (
+                $payload[
+                    'approved_payment_count'
+                ]
+                ?? 0
+            ) > 0
+        ) {
+            return $this->confirmedPaymentEvidence(
+                routing: $routing,
+
+                payload: $payload,
+
+                searchState: $searchState
+            );
+        }
+
         return match ($searchState) {
             'no_supported_payment_candidate_found' => $this->noSupportedCandidate(
                 routing: $routing,
@@ -119,6 +136,206 @@ final class CeoSignalFindingService
                 searchState: $searchState
             ),
         };
+    }
+
+    private function confirmedPaymentEvidence(
+        array $routing,
+        array $payload,
+        string $searchState
+    ): CeoSignalFinding {
+        $subject =
+            $this->subjectName(
+                $routing
+            );
+
+        $accountingOutstanding =
+            $this->outstanding(
+                routing: $routing,
+
+                payload: $payload
+            );
+
+        $invoiceCount =
+            $this->invoiceCount(
+                routing: $routing,
+
+                payload: $payload
+            );
+
+        $confirmed =
+            (float) (
+                $payload[
+                    'confirmed_allocated_payment'
+                ]
+                ?? 0
+            );
+
+        $uncovered =
+            (float) (
+                $payload[
+                    'allocation_uncovered_amount'
+                ]
+                ?? $accountingOutstanding
+            );
+
+        $approvedCount =
+            (int) (
+                $payload[
+                    'approved_payment_count'
+                ]
+                ?? 0
+            );
+
+        $differenceCount =
+            (int) (
+                $payload[
+                    'source_outstanding_disagreement_count'
+                ]
+                ?? 0
+            );
+
+        $difference =
+            round(
+                $accountingOutstanding
+                - $uncovered,
+                2
+            );
+
+        if ($differenceCount > 0) {
+            return new CeoSignalFinding(
+                state: 'confirmed_payment_source_difference',
+
+                searchState: $searchState,
+
+                subjectName: $subject,
+
+                headline: sprintf(
+                    '%s: £%s confirmed received; accounting still differs',
+                    $subject,
+                    number_format(
+                        $confirmed,
+                        2
+                    )
+                ),
+
+                summary: sprintf(
+                    'Money Imp has %d approved or imported payment allocation%s confirming £%s against %d invoice%s. £%s of invoice value is not covered by approved allocation evidence, while the accounting source currently reports £%s outstanding — a £%s difference. This is a source-ledger reconciliation difference, not proof that the source-reported balance is still owed.',
+                    $approvedCount,
+                    $approvedCount === 1
+                        ? ''
+                        : 's',
+                    number_format(
+                        $confirmed,
+                        2
+                    ),
+                    $invoiceCount,
+                    $invoiceCount === 1
+                        ? ''
+                        : 's',
+                    number_format(
+                        $uncovered,
+                        2
+                    ),
+                    number_format(
+                        $accountingOutstanding,
+                        2
+                    ),
+                    number_format(
+                        abs(
+                            $difference
+                        ),
+                        2
+                    )
+                ),
+
+                nextStep: 'Reconcile the accounting source against the approved Money Imp payment allocation before chasing the source-reported balance.',
+
+                truthBoundary: 'An approved payment allocation confirms Money Imp payment attribution. It does not rewrite the accounting source, and invoice value not covered by an approved allocation is not by itself proof that no other payment occurred.',
+
+                accountingOutstanding: $accountingOutstanding,
+
+                invoiceCount: $invoiceCount,
+
+                bankDateSpanCoversInvoices: (bool) (
+                    $payload[
+                        'bank_date_span_covers_invoices'
+                    ]
+                    ?? false
+                ),
+
+                supportedCandidateCount: (int) (
+                    $payload[
+                        'supported_candidate_count'
+                    ]
+                    ?? 0
+                )
+            );
+        }
+
+        return new CeoSignalFinding(
+            state: 'confirmed_payment_evidence',
+
+            searchState: $searchState,
+
+            subjectName: $subject,
+
+            headline: sprintf(
+                '%s: £%s of payment evidence is confirmed',
+                $subject,
+                number_format(
+                    $confirmed,
+                    2
+                )
+            ),
+
+            summary: sprintf(
+                'Money Imp has %d approved or imported payment allocation%s confirming £%s against %d invoice%s. The accounting source currently reports £%s outstanding, matching the £%s of invoice value not covered by approved allocation evidence.',
+                $approvedCount,
+                $approvedCount === 1
+                    ? ''
+                    : 's',
+                number_format(
+                    $confirmed,
+                    2
+                ),
+                $invoiceCount,
+                $invoiceCount === 1
+                    ? ''
+                    : 's',
+                number_format(
+                    $accountingOutstanding,
+                    2
+                ),
+                number_format(
+                    $uncovered,
+                    2
+                )
+            ),
+
+            nextStep: $uncovered > 0
+                ? 'Keep the remaining balance under investigation until payment evidence or accounting evidence supports a stronger conclusion.'
+                : 'No further collection conclusion is required for the allocation-covered invoice value unless new contradictory evidence appears.',
+
+            truthBoundary: 'An approved payment allocation confirms Money Imp payment attribution. Invoice value not covered by an approved allocation is not by itself proof that no other payment occurred.',
+
+            accountingOutstanding: $accountingOutstanding,
+
+            invoiceCount: $invoiceCount,
+
+            bankDateSpanCoversInvoices: (bool) (
+                $payload[
+                    'bank_date_span_covers_invoices'
+                ]
+                ?? false
+            ),
+
+            supportedCandidateCount: (int) (
+                $payload[
+                    'supported_candidate_count'
+                ]
+                ?? 0
+            )
+        );
     }
 
     private function noSupportedCandidate(

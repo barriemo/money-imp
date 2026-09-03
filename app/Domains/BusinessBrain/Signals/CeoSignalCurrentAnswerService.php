@@ -177,6 +177,10 @@ final class CeoSignalCurrentAnswerService
 
             'candidate_requires_verification' => 'Evidence to verify',
 
+            'confirmed_payment_source_difference' => 'Payment confirmed / source differs',
+
+            'confirmed_payment_evidence' => 'Payment evidence confirmed',
+
             'weak_evidence_requires_review' => 'Evidence needs review',
 
             'evidence_coverage_incomplete' => 'Bank evidence incomplete',

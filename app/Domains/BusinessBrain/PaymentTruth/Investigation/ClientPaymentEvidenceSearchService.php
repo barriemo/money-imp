@@ -2,6 +2,7 @@
 
 namespace App\Domains\BusinessBrain\PaymentTruth\Investigation;
 
+use App\Domains\BusinessBrain\PaymentTruth\InvoicePaymentTruthService;
 use App\Domains\BusinessBrain\PaymentTruth\Ledger\ClientLedgerAnalysisService;
 use App\Models\AccountingInvoice;
 use App\Models\BankTransaction;
@@ -15,6 +16,8 @@ final class ClientPaymentEvidenceSearchService
 {
     public function __construct(
         private readonly ClientLedgerAnalysisService $ledger,
+
+        private readonly InvoicePaymentTruthService $invoicePaymentTruth,
     ) {}
 
     public function search(
@@ -52,6 +55,52 @@ final class ClientPaymentEvidenceSearchService
                     'clientId',
                     $client->id
                 );
+
+        $invoiceTruth =
+            $invoices
+                ->map(
+                    fn (AccountingInvoice $invoice) => $this->invoicePaymentTruth
+                        ->forInvoice(
+                            $invoice->loadMissing(
+                                'client'
+                            )
+                        )
+                )
+                ->values();
+
+        $confirmedAllocatedPayment =
+            round(
+                (float) $invoiceTruth
+                    ->sum(
+                        'bankConfirmedPaid'
+                    ),
+                2
+            );
+
+        $allocationUncoveredAmount =
+            round(
+                (float) $invoiceTruth
+                    ->sum(
+                        'provenOutstanding'
+                    ),
+                2
+            );
+
+        $approvedPaymentCount =
+            (int) $invoiceTruth
+                ->sum(
+                    'approvedPaymentCount'
+                );
+
+        $sourceOutstandingDisagreementCount =
+            $invoiceTruth
+                ->filter(
+                    fn ($truth) => abs(
+                        (float) $truth->accountingOutstanding
+                        - (float) $truth->provenOutstanding
+                    ) >= 0.01
+                )
+                ->count();
 
         $firstInvoiceAt =
             $invoices
@@ -396,6 +445,14 @@ final class ClientPaymentEvidenceSearchService
                 ),
                 2
             ),
+
+            confirmedAllocatedPayment: $confirmedAllocatedPayment,
+
+            allocationUncoveredAmount: $allocationUncoveredAmount,
+
+            approvedPaymentCount: $approvedPaymentCount,
+
+            sourceOutstandingDisagreementCount: $sourceOutstandingDisagreementCount,
 
             firstInvoiceAt: $firstInvoiceAt,
 

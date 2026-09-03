@@ -23,6 +23,124 @@ class CeoSignalReassessmentServiceTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_legacy_payment_event_without_stage_4a_fields_does_not_change_only_because_schema_was_enriched(): void
+    {
+        [
+            $entry,
+            $humanCase,
+            $ledgerCase,
+        ] =
+            $this->captureVfSignal();
+
+        $search =
+            $ledgerCase
+                ->events()
+                ->where(
+                    'type',
+                    'payment_evidence_search'
+                )
+                ->sole();
+
+        /*
+         * Simulate the exact shape of a payment-search event
+         * persisted before Stage 4A existed.
+         */
+        $payload =
+            $search->payload;
+
+        $stage4aKeys = [
+            'confirmed_allocated_payment',
+            'allocation_uncovered_amount',
+            'approved_payment_count',
+            'source_outstanding_disagreement_count',
+        ];
+
+        foreach ($stage4aKeys as $key) {
+            unset(
+                $payload[
+                    $key
+                ]
+            );
+        }
+
+        $search
+            ->forceFill([
+                'payload' => $payload,
+            ])
+            ->save();
+
+        $search->refresh();
+
+        foreach ($stage4aKeys as $key) {
+            $this->assertArrayNotHasKey(
+                $key,
+                $search->payload
+            );
+        }
+
+        $beforeCount =
+            $ledgerCase
+                ->events()
+                ->where(
+                    'type',
+                    'payment_evidence_reassessment'
+                )
+                ->count();
+
+        $result =
+            app(
+                CeoSignalReassessmentService::class
+            )->reassess(
+                $entry->fresh()
+            );
+
+        /*
+         * The current search now contains the new Stage 4A
+         * fields, but their zero/default values describe the
+         * same evidence as the historical event.
+         *
+         * Deployment/schema enrichment alone must therefore
+         * not create a fake evidence-change event.
+         */
+        $this->assertFalse(
+            $result->changed
+        );
+
+        $this->assertSame(
+            'unchanged',
+            $result->status
+        );
+
+        $this->assertSame(
+            'bank_evidence_missing',
+            $result->previousState
+        );
+
+        $this->assertSame(
+            'bank_evidence_missing',
+            $result->currentState
+        );
+
+        $this->assertSame(
+            $beforeCount,
+            $ledgerCase
+                ->events()
+                ->where(
+                    'type',
+                    'payment_evidence_reassessment'
+                )
+                ->count()
+        );
+
+        $this->assertTruthStillUnverified(
+            entryId: $entry->id,
+
+            humanCaseId: $humanCase->id,
+
+            ledgerCaseId: $ledgerCase->id
+        );
+    }
+
     public function test_unchanged_evidence_does_not_append_reassessment_event(): void
     {
         [
@@ -151,9 +269,9 @@ class CeoSignalReassessmentServiceTest extends TestCase
             ),
 
             'metadata' => [
-            'freeagent_full_description' => 'VF ELECTRICAL SERVICES LTD',
+                'freeagent_full_description' => 'VF ELECTRICAL SERVICES LTD',
 
-            'freeagent_unexplained_amount' => 7218,
+                'freeagent_unexplained_amount' => 7218,
             ],
         ]);
 
