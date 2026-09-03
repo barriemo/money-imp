@@ -36,6 +36,10 @@ class EvidenceTrigger
 
             ['bank', 'bank_transaction_classification_changed'] => 'A bank transaction classification changed.',
 
+            ['bank', 'reconciliation_candidates_generated'] => 'Automated reconciliation candidate evidence changed.',
+
+            ['bank', 'reconciliation_candidates_rebuilt'] => 'Automated reconciliation candidates were rebuilt.',
+
             default => sprintf(
                 '%s evidence changed: %s.',
                 ucfirst($this->domain),

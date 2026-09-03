@@ -12,8 +12,13 @@ use Illuminate\Support\Str;
 
 class ReconciliationCandidateService
 {
-    public function generate(): array
-    {
+    public function __construct(
+        private readonly ReconciliationEvidencePublisher $evidence,
+    ) {}
+
+    public function generate(
+        bool $publishEvidence = true
+    ): array {
         $stats = [
             'considered' => 0,
             'classified_non_client' => 0,
@@ -69,6 +74,13 @@ class ReconciliationCandidateService
                         'transaction_type' => 'customer_payment',
                         'match_status' => 'suggested',
                         'match_confidence' => $confidence,
+
+                        'metadata' => array_merge(
+                            $transaction->metadata ?? [],
+                            [
+                                'reconciliation_provenance' => 'automated_candidate',
+                            ]
+                        ),
                     ]);
 
                     $stats['client_matches']++;
@@ -105,6 +117,22 @@ class ReconciliationCandidateService
                     $stats['invoice_matches']++;
                 }
             });
+
+        if (
+            $publishEvidence
+            && (
+                $stats['classified_non_client'] > 0
+                || $stats['client_matches'] > 0
+                || $stats['invoice_matches'] > 0
+            )
+        ) {
+            $this->evidence
+                ->publish(
+                    type: 'reconciliation_candidates_generated',
+
+                    metadata: $stats
+                );
+        }
 
         return $stats;
     }

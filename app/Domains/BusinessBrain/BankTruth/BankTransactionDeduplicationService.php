@@ -13,6 +13,11 @@ class BankTransactionDeduplicationService
             ->where('transaction_type', 'customer_payment')
             ->where('amount', '>', 0)
             ->get()
+            ->filter(
+                fn (BankTransaction $transaction) => ! $this->isMachineSuggestedAttribution(
+                    $transaction
+                )
+            )
             ->groupBy(
                 fn (BankTransaction $transaction) => implode('|', [
                     $transaction->bank_account_id,
@@ -57,6 +62,19 @@ class BankTransactionDeduplicationService
                 ? 100
                 : 80,
         );
+    }
+
+    private function isMachineSuggestedAttribution(
+        BankTransaction $transaction
+    ): bool {
+        return $transaction->client_id !== null
+            && $transaction->match_status === 'suggested'
+            && $transaction->matched_by === null
+            && (
+                $transaction->metadata[
+                    'reconciliation_provenance'
+                ] ?? null
+            ) === 'automated_candidate';
     }
 
     private function sourceConfidence(

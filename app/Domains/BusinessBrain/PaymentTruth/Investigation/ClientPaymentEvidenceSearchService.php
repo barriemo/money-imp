@@ -162,12 +162,20 @@ final class ClientPaymentEvidenceSearchService
             }
 
             /*
-             * Already attributed canonical cash is not a
-             * "hidden payment candidate".
+             * Human-confirmed or settled client attribution is
+             * already canonical cash and is therefore not a
+             * hidden payment candidate.
+             *
+             * A machine-generated suggestion remains provisional.
+             * It can support further investigation, but must not
+             * silently become canonical client cash.
              */
             if (
-                $transaction->client_id
-                === $client->id
+                $this->isCanonicalClientAttribution(
+                    transaction: $transaction,
+
+                    clientId: $client->id
+                )
             ) {
                 continue;
             }
@@ -184,6 +192,22 @@ final class ClientPaymentEvidenceSearchService
                 $this->transactionText(
                     $transaction
                 );
+
+            if (
+                $this->isMachineSuggestedClientAttribution(
+                    transaction: $transaction,
+
+                    clientId: $client->id
+                )
+            ) {
+                $this->candidate(
+                    candidates: $supportedCandidates,
+
+                    transaction: $transaction,
+
+                    reason: 'machine_client_attribution_suggestion'
+                );
+            }
 
             foreach ($aliases as $alias) {
                 if (
@@ -678,8 +702,11 @@ final class ClientPaymentEvidenceSearchService
 
         foreach ($transactions as $transaction) {
             if (
-                $transaction->client_id
-                === $clientId
+                $this->isCanonicalClientAttribution(
+                    transaction: $transaction,
+
+                    clientId: $clientId
+                )
             ) {
                 continue;
             }
@@ -861,6 +888,38 @@ final class ClientPaymentEvidenceSearchService
                     ),
             ])
         );
+    }
+
+    private function isCanonicalClientAttribution(
+        BankTransaction $transaction,
+        string $clientId
+    ): bool {
+        if (
+            $transaction->client_id
+            !== $clientId
+        ) {
+            return false;
+        }
+
+        return ! $this->isMachineSuggestedClientAttribution(
+            transaction: $transaction,
+
+            clientId: $clientId
+        );
+    }
+
+    private function isMachineSuggestedClientAttribution(
+        BankTransaction $transaction,
+        string $clientId
+    ): bool {
+        return $transaction->client_id === $clientId
+            && $transaction->match_status === 'suggested'
+            && $transaction->matched_by === null
+            && (
+                $transaction->metadata[
+                    'reconciliation_provenance'
+                ] ?? null
+            ) === 'automated_candidate';
     }
 
     private function sourceStillOpen(
