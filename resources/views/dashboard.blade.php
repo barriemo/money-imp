@@ -161,6 +161,69 @@
             line-height: 1.45;
         }
 
+        .brain-answers {
+            display: grid;
+            gap: 12px;
+        }
+
+        .brain-answer {
+            padding: 20px;
+            background: #181818;
+            border: 1px solid #343434;
+            border-radius: 14px;
+        }
+
+        .brain-answer-meta {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 9px;
+            margin-bottom: 10px;
+            color: #777;
+            font-size: 13px;
+        }
+
+        .brain-answer-status {
+            padding: 4px 8px;
+            background: #242424;
+            border: 1px solid #3a3a3a;
+            border-radius: 999px;
+            color: #d8d8d8;
+            font-weight: 700;
+        }
+
+        .brain-answer-question {
+            margin-bottom: 13px;
+            color: #999;
+            font-size: 14px;
+            line-height: 1.45;
+        }
+
+        .brain-answer h3 {
+            margin: 0 0 9px;
+            font-size: 20px;
+            letter-spacing: -0.3px;
+        }
+
+        .brain-answer p {
+            margin: 0;
+            color: #d3d7dc;
+            line-height: 1.55;
+        }
+
+        .brain-answer-next {
+            margin-top: 13px;
+            color: #f2f2f2;
+            line-height: 1.45;
+        }
+
+        .brain-answer-boundary {
+            margin-top: 10px;
+            color: #777;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
         .signal-error {
             margin-top: 8px;
             color: #e88c8c;
@@ -325,7 +388,15 @@
             or questioning.
         </p>
 
-        @if (session('ceo_signal_finding'))
+        @if (
+            session('ceo_signal_finding')
+            && $ceoSignalAnswers->isNotEmpty()
+        )
+            <div class="signal-success">
+                Captured. Money Imp has updated
+                your current Brain answer below.
+            </div>
+        @elseif (session('ceo_signal_finding'))
             @php
                 $finding =
                     session(
@@ -393,6 +464,50 @@
             </div>
         </form>
     </section>
+
+    @if ($ceoSignalAnswers->isNotEmpty())
+        <div class="section-title">
+            What you asked the Brain
+        </div>
+
+        <section class="brain-answers">
+            @foreach ($ceoSignalAnswers as $answer)
+                <article class="brain-answer">
+                    <div class="brain-answer-meta">
+                        <span class="brain-answer-status">
+                            {{ $answer->statusLabel }}
+                        </span>
+
+                        <span>
+                            Asked {{ $answer->askedAtLabel }}
+                        </span>
+                    </div>
+
+                    <div class="brain-answer-question">
+                        “{{ $answer->question }}”
+                    </div>
+
+                    <h3>
+                        {{ $answer->headline }}
+                    </h3>
+
+                    <p>
+                        {{ $answer->summary }}
+                    </p>
+
+                    <div class="brain-answer-next">
+                        <b>Next:</b>
+                        {{ $answer->nextStep }}
+                    </div>
+
+                    <div class="brain-answer-boundary">
+                        <b>Truth boundary:</b>
+                        {{ $answer->truthBoundary }}
+                    </div>
+                </article>
+            @endforeach
+        </section>
+    @endif
 
     <div class="section-title">
         CFO Position
