@@ -22,6 +22,8 @@ final class CeoSignalRoutingService
 
         private readonly ClientPaymentEvidenceSearchService $paymentEvidence,
 
+        private readonly CeoSignalReassessmentService $reassessment,
+
         private readonly InvestigationCaseService $cases,
     ) {}
 
@@ -84,6 +86,22 @@ final class CeoSignalRoutingService
                     ] ?? null
                 ) !== null
             ) {
+                $hadPaymentEvidence =
+                    $ledgerCase
+                        ->events()
+                        ->whereIn(
+                            'type',
+                            [
+                                'payment_evidence_search',
+                                'payment_evidence_reassessment',
+                            ]
+                        )
+                        ->where(
+                            'payload->business_memory_entry_id',
+                            $entry->id
+                        )
+                        ->exists();
+
                 $this->capturePaymentEvidenceSearch(
                     entry: $entry,
 
@@ -101,6 +119,13 @@ final class CeoSignalRoutingService
                         ] ?? 'Client'
                     )
                 );
+
+                if ($hadPaymentEvidence) {
+                    $this->reassessment
+                        ->reassess(
+                            $entry
+                        );
+                }
             }
 
             return $existingRouting;

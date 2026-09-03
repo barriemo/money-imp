@@ -50,16 +50,22 @@ final class CeoSignalFindingService
 
         $event =
             $case->events()
-                ->where(
+                ->whereIn(
                     'type',
-                    'payment_evidence_search'
+                    [
+                        'payment_evidence_search',
+                        'payment_evidence_reassessment',
+                    ]
                 )
                 ->where(
                     'payload->business_memory_entry_id',
                     $entry->id
                 )
-                ->latest(
+                ->orderByDesc(
                     'occurred_at'
+                )
+                ->orderByDesc(
+                    'created_at'
                 )
                 ->first();
 
