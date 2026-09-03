@@ -28,6 +28,14 @@ class EvidenceTrigger
 
             ['accounting', 'invoices_changed'] => 'FreeAgent invoice evidence changed.',
 
+            ['bank', 'client_payment_attribution_changed'] => 'Client payment attribution evidence changed.',
+
+            ['bank', 'payment_allocation_approved'] => 'A client payment allocation was approved.',
+
+            ['bank', 'payment_allocation_rejected'] => 'A client payment allocation was rejected.',
+
+            ['bank', 'bank_transaction_classification_changed'] => 'A bank transaction classification changed.',
+
             default => sprintf(
                 '%s evidence changed: %s.',
                 ucfirst($this->domain),

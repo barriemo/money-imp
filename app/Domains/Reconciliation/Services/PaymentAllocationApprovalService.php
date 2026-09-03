@@ -13,6 +13,8 @@ class PaymentAllocationApprovalService
 {
     public function __construct(
         private readonly InvoiceBalanceService $balances,
+
+        private readonly ReconciliationEvidencePublisher $evidence,
     ) {}
 
     public function approveManual(
@@ -21,174 +23,195 @@ class PaymentAllocationApprovalService
         float $requestedAmount,
         string $userId,
     ): PaymentAllocation {
-        return DB::transaction(function () use (
-            $transaction,
-            $invoice,
-            $requestedAmount,
-            $userId
-        ): PaymentAllocation {
-            $transaction = BankTransaction::query()
-                ->lockForUpdate()
-                ->findOrFail($transaction->id);
-
-            $invoice = AccountingInvoice::query()
-                ->lockForUpdate()
-                ->findOrFail($invoice->id);
-
-            if (
-                $transaction->client_id === null
-                || $invoice->client_id !== $transaction->client_id
-            ) {
-                throw ValidationException::withMessages([
-                    'allocation' => 'The payment and invoice must belong to the same client.',
-                ]);
-            }
-
-            if ($requestedAmount <= 0) {
-                throw ValidationException::withMessages([
-                    'amount' => 'The allocation amount must be greater than zero.',
-                ]);
-            }
-
-            $transactionAllocated = (float) $transaction
-                ->paymentAllocations()
-                ->whereIn('status', ['approved', 'imported'])
-                ->sum('amount');
-
-            $paymentAvailable = max(
-                0,
-                (float) $transaction->amount - $transactionAllocated
-            );
-
-            $invoiceOutstanding = (float) $this->balances
-                ->outstanding($invoice);
-
-            $amount = min(
+        $allocation =
+            DB::transaction(function () use (
+                $transaction,
+                $invoice,
                 $requestedAmount,
-                $paymentAvailable,
-                $invoiceOutstanding
-            );
+                $userId
+            ): PaymentAllocation {
+                $transaction = BankTransaction::query()
+                    ->lockForUpdate()
+                    ->findOrFail($transaction->id);
 
-            if ($amount <= 0) {
-                throw ValidationException::withMessages([
-                    'allocation' => 'There is no remaining payment or invoice balance available to allocate.',
+                $invoice = AccountingInvoice::query()
+                    ->lockForUpdate()
+                    ->findOrFail($invoice->id);
+
+                if (
+                    $transaction->client_id === null
+                    || $invoice->client_id !== $transaction->client_id
+                ) {
+                    throw ValidationException::withMessages([
+                        'allocation' => 'The payment and invoice must belong to the same client.',
+                    ]);
+                }
+
+                if ($requestedAmount <= 0) {
+                    throw ValidationException::withMessages([
+                        'amount' => 'The allocation amount must be greater than zero.',
+                    ]);
+                }
+
+                $transactionAllocated = (float) $transaction
+                    ->paymentAllocations()
+                    ->whereIn('status', ['approved', 'imported'])
+                    ->sum('amount');
+
+                $paymentAvailable = max(
+                    0,
+                    (float) $transaction->amount - $transactionAllocated
+                );
+
+                $invoiceOutstanding = (float) $this->balances
+                    ->outstanding($invoice);
+
+                $amount = min(
+                    $requestedAmount,
+                    $paymentAvailable,
+                    $invoiceOutstanding
+                );
+
+                if ($amount <= 0) {
+                    throw ValidationException::withMessages([
+                        'allocation' => 'There is no remaining payment or invoice balance available to allocate.',
+                    ]);
+                }
+
+                $allocation = PaymentAllocation::updateOrCreate(
+                    [
+                        'bank_transaction_id' => $transaction->id,
+                        'accounting_invoice_id' => $invoice->id,
+                    ],
+                    [
+                        'amount' => $amount,
+                        'status' => 'approved',
+                        'confidence' => 100,
+                        'approved_by' => $userId,
+                        'approved_at' => now(),
+                        'match_method' => 'manual_reconciliation',
+                        'reason' => 'Approved manually in Money Imp reconciliation inbox.',
+                    ]
+                );
+
+                $totalAllocated = (float) $transaction
+                    ->paymentAllocations()
+                    ->whereIn('status', ['approved', 'imported'])
+                    ->sum('amount');
+
+                $transaction->update([
+                    'match_status' => $totalAllocated + 0.01
+                        >= (float) $transaction->amount
+                        ? 'reconciled'
+                        : 'partially_allocated',
+                    'matched_by' => $userId,
+                    'matched_at' => now(),
                 ]);
-            }
 
-            $allocation = PaymentAllocation::updateOrCreate(
-                [
-                    'bank_transaction_id' => $transaction->id,
-                    'accounting_invoice_id' => $invoice->id,
-                ],
-                [
-                    'amount' => $amount,
-                    'status' => 'approved',
-                    'confidence' => 100,
-                    'approved_by' => $userId,
-                    'approved_at' => now(),
-                    'match_method' => 'manual_reconciliation',
-                    'reason' => 'Approved manually in Money Imp reconciliation inbox.',
-                ]
-            );
+                return $allocation->fresh();
+            });
 
-            $totalAllocated = (float) $transaction
-                ->paymentAllocations()
-                ->whereIn('status', ['approved', 'imported'])
-                ->sum('amount');
+        $this->publishAllocationEvidence(
+            allocation: $allocation,
 
-            $transaction->update([
-                'match_status' => $totalAllocated + 0.01
-                    >= (float) $transaction->amount
-                    ? 'reconciled'
-                    : 'partially_allocated',
-                'matched_by' => $userId,
-                'matched_at' => now(),
-            ]);
+            type: 'payment_allocation_approved'
+        );
 
-            return $allocation->fresh();
-        });
+        return $allocation;
     }
 
     public function approve(
         PaymentAllocation $allocation,
         string $userId,
     ): PaymentAllocation {
-        return \DB::transaction(function () use ($allocation, $userId): PaymentAllocation {
-            $allocation = PaymentAllocation::query()
-                ->lockForUpdate()
-                ->findOrFail($allocation->id);
+        $allocation =
+            DB::transaction(function () use (
+                $allocation,
+                $userId
+            ): PaymentAllocation {
+                $allocation = PaymentAllocation::query()
+                    ->lockForUpdate()
+                    ->findOrFail($allocation->id);
 
-            if ($allocation->status !== 'suggested') {
-                throw ValidationException::withMessages([
-                    'allocation' => 'This payment suggestion is no longer awaiting approval.',
+                if ($allocation->status !== 'suggested') {
+                    throw ValidationException::withMessages([
+                        'allocation' => 'This payment suggestion is no longer awaiting approval.',
+                    ]);
+                }
+
+                $transaction = $allocation->transaction()
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $invoice = $allocation->invoice()
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if (
+                    $transaction->client_id === null
+                    || $invoice->client_id !== $transaction->client_id
+                ) {
+                    throw ValidationException::withMessages([
+                        'allocation' => 'The payment and invoice no longer belong to the same client.',
+                    ]);
+                }
+
+                $transactionAllocated = (float) $transaction
+                    ->paymentAllocations()
+                    ->whereIn('status', ['approved', 'imported'])
+                    ->where('id', '!=', $allocation->id)
+                    ->sum('amount');
+
+                $paymentAvailable = max(
+                    0,
+                    (float) $transaction->amount - $transactionAllocated
+                );
+
+                $invoiceOutstanding = (float) $this->balances->outstanding($invoice);
+
+                $amount = min(
+                    (float) $allocation->amount,
+                    $paymentAvailable,
+                    $invoiceOutstanding
+                );
+
+                if ($amount <= 0) {
+                    throw ValidationException::withMessages([
+                        'allocation' => 'There is no remaining payment or invoice balance available for this suggestion.',
+                    ]);
+                }
+
+                $allocation->update([
+                    'amount' => $amount,
+                    'status' => 'approved',
+                    'confidence' => $allocation->confidence,
+                    'approved_by' => $userId,
+                    'approved_at' => now(),
                 ]);
-            }
 
-            $transaction = $allocation->transaction()
-                ->lockForUpdate()
-                ->firstOrFail();
+                $totalAllocated = (float) $transaction
+                    ->paymentAllocations()
+                    ->whereIn('status', ['approved', 'imported'])
+                    ->sum('amount');
 
-            $invoice = $allocation->invoice()
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            if (
-                $transaction->client_id === null
-                || $invoice->client_id !== $transaction->client_id
-            ) {
-                throw ValidationException::withMessages([
-                    'allocation' => 'The payment and invoice no longer belong to the same client.',
+                $transaction->update([
+                    'match_status' => $totalAllocated + 0.01 >= (float) $transaction->amount
+                        ? 'reconciled'
+                        : 'partially_allocated',
+                    'matched_by' => $userId,
+                    'matched_at' => now(),
                 ]);
-            }
 
-            $transactionAllocated = (float) $transaction
-                ->paymentAllocations()
-                ->whereIn('status', ['approved', 'imported'])
-                ->where('id', '!=', $allocation->id)
-                ->sum('amount');
+                return $allocation->fresh();
+            });
 
-            $paymentAvailable = max(
-                0,
-                (float) $transaction->amount - $transactionAllocated
-            );
+        $this->publishAllocationEvidence(
+            allocation: $allocation,
 
-            $invoiceOutstanding = (float) $this->balances->outstanding($invoice);
+            type: 'payment_allocation_approved'
+        );
 
-            $amount = min(
-                (float) $allocation->amount,
-                $paymentAvailable,
-                $invoiceOutstanding
-            );
-
-            if ($amount <= 0) {
-                throw ValidationException::withMessages([
-                    'allocation' => 'There is no remaining payment or invoice balance available for this suggestion.',
-                ]);
-            }
-
-            $allocation->update([
-                'amount' => $amount,
-                'status' => 'approved',
-                'confidence' => $allocation->confidence,
-                'approved_by' => $userId,
-                'approved_at' => now(),
-            ]);
-
-            $totalAllocated = (float) $transaction
-                ->paymentAllocations()
-                ->whereIn('status', ['approved', 'imported'])
-                ->sum('amount');
-
-            $transaction->update([
-                'match_status' => $totalAllocated + 0.01 >= (float) $transaction->amount
-                    ? 'reconciled'
-                    : 'partially_allocated',
-                'matched_by' => $userId,
-                'matched_at' => now(),
-            ]);
-
-            return $allocation->fresh();
-        });
+        return $allocation;
     }
 
     public function reject(
@@ -196,36 +219,82 @@ class PaymentAllocationApprovalService
         string $userId,
         ?string $reason = null,
     ): PaymentAllocation {
-        return \DB::transaction(function () use (
-            $allocation,
-            $userId,
-            $reason
-        ): PaymentAllocation {
-            $allocation = PaymentAllocation::query()
-                ->lockForUpdate()
-                ->findOrFail($allocation->id);
+        $allocation =
+            DB::transaction(function () use (
+                $allocation,
+                $userId,
+                $reason
+            ): PaymentAllocation {
+                $allocation = PaymentAllocation::query()
+                    ->lockForUpdate()
+                    ->findOrFail($allocation->id);
 
-            if ($allocation->status !== 'suggested') {
-                throw ValidationException::withMessages([
-                    'allocation' => 'This payment suggestion is no longer awaiting review.',
+                if ($allocation->status !== 'suggested') {
+                    throw ValidationException::withMessages([
+                        'allocation' => 'This payment suggestion is no longer awaiting review.',
+                    ]);
+                }
+
+                $metadata = $allocation->metadata ?? [];
+
+                if ($reason !== null && trim($reason) !== '') {
+                    $metadata['rejection_reason'] = trim($reason);
+                }
+
+                $metadata['rejected_at'] = now()->toIso8601String();
+                $metadata['rejected_by'] = $userId;
+
+                $allocation->update([
+                    'status' => 'rejected',
+                    'metadata' => $metadata,
                 ]);
-            }
 
-            $metadata = $allocation->metadata ?? [];
+                return $allocation->fresh();
+            });
 
-            if ($reason !== null && trim($reason) !== '') {
-                $metadata['rejection_reason'] = trim($reason);
-            }
+        $this->publishAllocationEvidence(
+            allocation: $allocation,
 
-            $metadata['rejected_at'] = now()->toIso8601String();
-            $metadata['rejected_by'] = $userId;
+            type: 'payment_allocation_rejected'
+        );
 
-            $allocation->update([
-                'status' => 'rejected',
-                'metadata' => $metadata,
-            ]);
+        return $allocation;
+    }
 
-            return $allocation->fresh();
-        });
+    private function publishAllocationEvidence(
+        PaymentAllocation $allocation,
+        string $type
+    ): void {
+        $allocation->loadMissing([
+            'transaction',
+            'invoice',
+        ]);
+
+        $clientId =
+            $allocation
+                ->invoice
+                ?->client_id
+            ?? $allocation
+                ->transaction
+                ?->client_id;
+
+        $this->evidence
+            ->publish(
+                type: $type,
+
+                clientId: $clientId,
+
+                metadata: [
+                    'allocation_id' => $allocation->id,
+
+                    'bank_transaction_id' => $allocation->bank_transaction_id,
+
+                    'accounting_invoice_id' => $allocation->accounting_invoice_id,
+
+                    'status' => $allocation->status,
+
+                    'amount' => (float) $allocation->amount,
+                ]
+            );
     }
 }

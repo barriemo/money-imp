@@ -866,6 +866,29 @@ final class ClientPaymentEvidenceSearchService
     private function sourceStillOpen(
         BankTransaction $transaction
     ): bool {
+        /*
+         * A deliberate Money Imp reconciliation decision wins
+         * over stale source metadata.
+         *
+         * FreeAgent may continue reporting the original
+         * unexplained amount until its own records catch up.
+         * Once a human has reconciled or explicitly ignored the
+         * transaction, it must not continue appearing as hidden
+         * payment evidence.
+         */
+        if (
+            in_array(
+                $transaction->match_status,
+                [
+                    'reconciled',
+                    'ignored',
+                ],
+                true
+            )
+        ) {
+            return false;
+        }
+
         $unexplained =
             $transaction->metadata[
                 'freeagent_unexplained_amount'
@@ -876,14 +899,7 @@ final class ClientPaymentEvidenceSearchService
                 > 0.009;
         }
 
-        return ! in_array(
-            $transaction->match_status,
-            [
-                'reconciled',
-                'ignored',
-            ],
-            true
-        );
+        return true;
     }
 
     private function isInsideInvoiceEvidencePeriod(

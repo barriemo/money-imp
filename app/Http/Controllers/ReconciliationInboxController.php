@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Domains\Reconciliation\Services\PayerIdentityService;
 use App\Domains\Reconciliation\Services\PaymentAllocationApprovalService;
+use App\Domains\Reconciliation\Services\ReconciliationEvidencePublisher;
 use App\Models\AccountingInvoice;
 use App\Models\BankTransaction;
 use App\Models\Client;
@@ -98,7 +99,8 @@ class ReconciliationInboxController extends Controller
     public function assignClient(
         Request $request,
         BankTransaction $transaction,
-        PayerIdentityService $identities
+        PayerIdentityService $identities,
+        ReconciliationEvidencePublisher $evidence
     ): RedirectResponse {
         $validated = $request->validate([
             'client_id' => ['required', 'uuid', 'exists:clients,id'],
@@ -178,6 +180,22 @@ class ReconciliationInboxController extends Controller
             }
         }
 
+        $evidence->publish(
+            type: 'client_payment_attribution_changed',
+
+            clientId: $clientId,
+
+            metadata: [
+                'transaction_id' => $transaction->id,
+
+                'remember_identity' => $request->boolean(
+                    'remember_identity'
+                ),
+
+                'bulk_assigned' => $bulkAssigned,
+            ]
+        );
+
         return back()->with(
             'success',
             $bulkAssigned > 0
@@ -218,8 +236,12 @@ class ReconciliationInboxController extends Controller
 
     public function ignore(
         Request $request,
-        BankTransaction $transaction
+        BankTransaction $transaction,
+        ReconciliationEvidencePublisher $evidence
     ): RedirectResponse {
+        $affectedClientId =
+            $transaction->client_id;
+
         DB::transaction(function () use ($request, $transaction): void {
             $transaction
                 ->paymentAllocations()
@@ -235,6 +257,18 @@ class ReconciliationInboxController extends Controller
                 'matched_at' => now(),
             ]);
         });
+
+        $evidence->publish(
+            type: 'bank_transaction_classification_changed',
+
+            clientId: $affectedClientId,
+
+            metadata: [
+                'transaction_id' => $transaction->id,
+
+                'classification' => 'non_client_income',
+            ]
+        );
 
         return back()->with(
             'success',
