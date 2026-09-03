@@ -467,12 +467,13 @@ final class CommercialAgreementCoverageReviewQueueService
                 === 'confirmed'
         ) {
             return [
-                CommercialAgreementCoverageService::OUTCOME_CONFIRMED_TERMS,
+                'confirm_terms',
                 CommercialAgreementCoverageService::OUTCOME_NEEDS_MORE_EVIDENCE,
             ];
         }
 
         return [
+            'establish_terms',
             CommercialAgreementCoverageService::OUTCOME_NO_CURRENT_CONTRACT,
             CommercialAgreementCoverageService::OUTCOME_NEEDS_MORE_EVIDENCE,
         ];

@@ -390,6 +390,7 @@ class CommercialAgreementCoverageReviewQueueServiceTest extends TestCase
 
         $this->assertSame(
             [
+                'establish_terms',
                 'no_current_contract',
                 'needs_more_evidence',
             ],
@@ -405,6 +406,69 @@ class CommercialAgreementCoverageReviewQueueServiceTest extends TestCase
         $this->assertSame(
             0,
             CommercialAgreementCoverageReview::count()
+        );
+    }
+
+    public function test_current_confirmed_agreement_exposes_human_confirm_terms_action_not_coverage_outcome_name(): void
+    {
+        $client =
+            Client::factory()->create([
+                'name' => 'Agreement Action Client',
+            ]);
+
+        $reviewer =
+            User::factory()->create();
+
+        $service =
+            $this->service(
+                client: $client,
+
+                name: 'Current Contract'
+            );
+
+        app(
+            CommercialAgreementAssertionService::class
+        )->confirm(
+            clientServiceId: $service->id,
+
+            cadence: 'monthly',
+
+            contractedAmountPence: 50000,
+
+            effectiveFrom: CarbonImmutable::parse(
+                '2026-01-01'
+            ),
+
+            reviewedBy: $reviewer->id,
+
+            source: 'signed_agreement',
+
+            reason: 'Confirmed current agreement.'
+        );
+
+        $candidate =
+            app(
+                CommercialAgreementCoverageReviewQueueService::class
+            )->ready(
+                CarbonImmutable::parse(
+                    '2026-09-03'
+                )
+            )
+                ->firstOrFail();
+
+        $this->assertSame(
+            [
+                'confirm_terms',
+                'needs_more_evidence',
+            ],
+            $candidate
+                ->availableDecisions
+        );
+
+        $this->assertNotContains(
+            'confirmed_terms',
+            $candidate
+                ->availableDecisions
         );
     }
 

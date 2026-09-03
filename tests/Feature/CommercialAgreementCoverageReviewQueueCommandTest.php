@@ -97,7 +97,7 @@ class CommercialAgreementCoverageReviewQueueCommandTest extends TestCase
         );
 
         $this->assertStringContainsString(
-            'Available decisions: no_current_contract, needs_more_evidence',
+            'Available decisions: establish_terms, no_current_contract, needs_more_evidence',
             $output
         );
 
