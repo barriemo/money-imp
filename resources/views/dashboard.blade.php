@@ -47,6 +47,93 @@
             font-size: 18px;
         }
 
+        .signal-box {
+            margin: 0 0 32px;
+            padding: 22px;
+            background: #181818;
+            border: 1px solid #343434;
+            border-radius: 14px;
+        }
+
+        .signal-box h2 {
+            margin: 0 0 5px;
+            font-size: 24px;
+            letter-spacing: -0.5px;
+        }
+
+        .signal-box > p {
+            margin: 0 0 16px;
+            color: #999;
+            line-height: 1.5;
+        }
+
+        .signal-box textarea {
+            display: block;
+            width: 100%;
+            min-height: 125px;
+            padding: 15px;
+            resize: vertical;
+            background: #101010;
+            color: #f5f5f5;
+            border: 1px solid #333;
+            border-radius: 10px;
+            font: inherit;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .signal-box textarea:focus {
+            outline: none;
+            border-color: #777;
+        }
+
+        .signal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            margin-top: 12px;
+        }
+
+        .signal-footer span {
+            max-width: 700px;
+            color: #777;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .signal-submit {
+            flex: 0 0 auto;
+            padding: 11px 17px;
+            background: #f5f5f5;
+            color: #111;
+            border: 0;
+            border-radius: 9px;
+            font: inherit;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .signal-submit:hover {
+            background: #ddd;
+        }
+
+        .signal-success {
+            margin-bottom: 14px;
+            padding: 11px 13px;
+            background: #162319;
+            border: 1px solid #315439;
+            border-radius: 9px;
+            color: #bde5c5;
+            line-height: 1.4;
+        }
+
+        .signal-error {
+            margin-top: 8px;
+            color: #e88c8c;
+            font-size: 14px;
+        }
+
         .metrics {
             display: grid;
             grid-template-columns:
@@ -173,6 +260,15 @@
             .action {
                 display: block;
             }
+
+            .signal-footer {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .signal-submit {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -186,6 +282,57 @@
     <p class="intro">
         Here's where the money is right now.
     </p>
+
+    <section class="signal-box">
+        <h2>What's on your mind?</h2>
+
+        <p>
+            Tell Money Imp what you're seeing,
+            thinking, feeling, worrying about
+            or questioning.
+        </p>
+
+        @if (session('ceo_signal_success'))
+            <div class="signal-success">
+                {{ session('ceo_signal_success') }}
+            </div>
+        @endif
+
+        <form
+            method="POST"
+            action="{{ route('ceo-signal.store') }}"
+        >
+            @csrf
+
+            <textarea
+                name="signal"
+                maxlength="5000"
+                required
+                placeholder="e.g. I think MML is swallowing far more time than we priced. Is that actually true?"
+            >{{ old('signal') }}</textarea>
+
+            @error('signal')
+                <div class="signal-error">
+                    {{ $message }}
+                </div>
+            @enderror
+
+            <div class="signal-footer">
+                <span>
+                    Starts as unverified human input.
+                    The Brain interrogates the evidence
+                    before anything can become truth.
+                </span>
+
+                <button
+                    class="signal-submit"
+                    type="submit"
+                >
+                    Send to Brain
+                </button>
+            </div>
+        </form>
+    </section>
 
     <div class="section-title">
         CFO Position

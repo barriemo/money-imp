@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BillingQueueController;
 use App\Http\Controllers\BillingReviewController;
+use App\Http\Controllers\CeoSignalController;
 use App\Http\Controllers\ChaseQueueController;
 use App\Http\Controllers\CommercialReconciliationController;
 use App\Http\Controllers\DashboardController;
@@ -39,6 +40,11 @@ Route::middleware('auth')->get(
     '/dashboard',
     [DashboardController::class, 'index']
 )->name('dashboard');
+
+Route::middleware('auth')->post(
+    '/ceo-signal',
+    [CeoSignalController::class, 'store']
+)->name('ceo-signal.store');
 
 Route::get('/', function () {
     return view('welcome');
