@@ -76,6 +76,10 @@ class ReconciliationCandidateTest extends TestCase
             'match_status' => 'unmatched',
             'source_type' => 'freeagent',
             'transaction_hash' => hash('sha256', 'transfer-test'),
+            'metadata' => [
+                'freeagent_unexplained_amount' => 2000,
+                'source_marker' => 'preserve-me',
+            ],
         ]);
 
         app(ReconciliationCandidateService::class)->generate();
@@ -85,6 +89,39 @@ class ReconciliationCandidateTest extends TestCase
         $this->assertNull($transaction->client_id);
         $this->assertSame('internal_transfer', $transaction->transaction_type);
         $this->assertSame('ignored', $transaction->match_status);
+
+        $this->assertSame(
+            'automated_non_client',
+            data_get(
+                $transaction->metadata,
+                'reconciliation_provenance'
+            )
+        );
+
+        $this->assertSame(
+            2000,
+            data_get(
+                $transaction->metadata,
+                'freeagent_unexplained_amount'
+            )
+        );
+
+        $this->assertSame(
+            'preserve-me',
+            data_get(
+                $transaction->metadata,
+                'source_marker'
+            )
+        );
+
+        $this->assertNull(
+            $transaction->matched_by
+        );
+
+        $this->assertNull(
+            $transaction->matched_at
+        );
+
         $this->assertSame(0, PaymentAllocation::count());
     }
 

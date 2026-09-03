@@ -51,6 +51,15 @@ class ReconciliationCandidateService
                     }
 
                     if ($this->looksNonClient($transaction)) {
+                        /*
+                         * This is an automated classification, not a
+                         * human reconciliation decision.
+                         *
+                         * Persist explicit provenance so later truth
+                         * services can distinguish future machine-owned
+                         * ignores from legacy ignored rows whose origin
+                         * cannot safely be inferred.
+                         */
                         $transaction->update([
                             'client_id' => null,
                             'transaction_type' => $this->classifyNonClient(
@@ -58,6 +67,12 @@ class ReconciliationCandidateService
                             ),
                             'match_status' => 'ignored',
                             'match_confidence' => 100,
+                            'metadata' => array_merge(
+                                $transaction->metadata ?? [],
+                                [
+                                    'reconciliation_provenance' => 'automated_non_client',
+                                ]
+                            ),
                         ]);
 
                         $stats['classified_non_client']++;

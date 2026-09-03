@@ -1000,23 +1000,47 @@ final class ClientPaymentEvidenceSearchService
          * A deliberate Money Imp reconciliation decision wins
          * over stale source metadata.
          *
-         * FreeAgent may continue reporting the original
-         * unexplained amount until its own records catch up.
-         * Once a human has reconciled or explicitly ignored the
-         * transaction, it must not continue appearing as hidden
-         * payment evidence.
+         * Reconciled transactions are settled Money Imp truth.
+         *
+         * An ignored transaction is only proven closed when we
+         * can identify the decision that closed it:
+         *
+         * - matched_by proves an attributable human decision;
+         * - automated_non_client proves the current classifier
+         *   deliberately classified it as non-client.
+         *
+         * Legacy ignored rows with neither signal remain
+         * epistemically unknown. Their ignored status alone is
+         * not enough to prove that the underlying receipt ceased
+         * to be relevant payment evidence.
          */
         if (
-            in_array(
-                $transaction->match_status,
-                [
-                    'reconciled',
-                    'ignored',
-                ],
-                true
-            )
+            $transaction->match_status
+            === 'reconciled'
         ) {
             return false;
+        }
+
+        if (
+            $transaction->match_status
+            === 'ignored'
+        ) {
+            if (
+                $transaction->matched_by
+                !== null
+            ) {
+                return false;
+            }
+
+            if (
+                (
+                    $transaction->metadata[
+                        'reconciliation_provenance'
+                    ] ?? null
+                ) === 'automated_non_client'
+            ) {
+                return false;
+            }
         }
 
         $unexplained =

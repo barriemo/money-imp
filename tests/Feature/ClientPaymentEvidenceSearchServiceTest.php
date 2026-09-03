@@ -12,6 +12,7 @@ use App\Models\ExternalConnection;
 use App\Models\ExternalRecord;
 use App\Models\PaymentAllocation;
 use App\Models\Supplier;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -701,6 +702,277 @@ class ClientPaymentEvidenceSearchServiceTest extends TestCase
         $this->assertSame(
             1,
             $result->namedOtherExactAmountCoincidenceCount
+        );
+    }
+
+    public function test_legacy_ignored_without_provenance_remains_open_payment_evidence(): void
+    {
+        $client =
+            $this->clientWithInvoice(
+                name: 'Acme Ltd',
+
+                invoiceNumber: 'LEGACY-IGNORE',
+
+                amount: 60
+            );
+
+        $account =
+            BankAccount::factory()->create();
+
+        $this->bank(
+            account: $account,
+
+            date: '2025-12-31',
+
+            amount: 1,
+
+            description: 'OPENING COVERAGE',
+
+            unexplained: 1
+        );
+
+        $transaction =
+            $this->bank(
+                account: $account,
+
+                date: '2026-01-02',
+
+                amount: 60,
+
+                description: 'OTHER COMPANY LTD',
+
+                unexplained: 60
+            );
+
+        $transaction->update([
+            'transaction_type' => 'card_credit',
+
+            'match_status' => 'ignored',
+
+            'match_confidence' => 100,
+
+            'matched_by' => null,
+
+            'matched_at' => null,
+        ]);
+
+        $result =
+            app(
+                ClientPaymentEvidenceSearchService::class
+            )->search(
+                $client->id
+            );
+
+        /*
+         * Legacy ignored state does not tell us who made the
+         * decision or why. It therefore cannot, by itself,
+         * erase an otherwise still-unexplained receipt.
+         */
+        $this->assertSame(
+            1,
+            $result->exactAmountCoincidenceCount
+        );
+
+        $this->assertSame(
+            1,
+            $result->namedOtherExactAmountCoincidenceCount
+        );
+
+        $this->assertSame(
+            'no_supported_payment_candidate_found',
+            $result->state
+        );
+    }
+
+    public function test_human_ignored_transaction_is_closed_payment_evidence(): void
+    {
+        $user =
+            User::factory()->create();
+
+        $client =
+            $this->clientWithInvoice(
+                name: 'Acme Ltd',
+
+                invoiceNumber: 'HUMAN-IGNORE',
+
+                amount: 60
+            );
+
+        $account =
+            BankAccount::factory()->create();
+
+        $this->bank(
+            account: $account,
+
+            date: '2025-12-31',
+
+            amount: 1,
+
+            description: 'OPENING COVERAGE',
+
+            unexplained: 1
+        );
+
+        $transaction =
+            $this->bank(
+                account: $account,
+
+                date: '2026-01-02',
+
+                amount: 60,
+
+                description: 'OTHER COMPANY LTD',
+
+                unexplained: 60
+            );
+
+        $transaction->update([
+            'transaction_type' => 'non_client_income',
+
+            'match_status' => 'ignored',
+
+            'match_confidence' => 100,
+
+            'matched_by' => $user->id,
+
+            'matched_at' => now(),
+        ]);
+
+        $result =
+            app(
+                ClientPaymentEvidenceSearchService::class
+            )->search(
+                $client->id
+            );
+
+        $this->assertSame(
+            0,
+            $result->exactAmountCoincidenceCount
+        );
+
+        $this->assertSame(
+            'no_supported_payment_candidate_found',
+            $result->state
+        );
+    }
+
+    public function test_automated_non_client_ignore_is_closed_payment_evidence(): void
+    {
+        $client =
+            $this->clientWithInvoice(
+                name: 'Acme Ltd',
+
+                invoiceNumber: 'AUTO-IGNORE',
+
+                amount: 60
+            );
+
+        $account =
+            BankAccount::factory()->create();
+
+        $this->bank(
+            account: $account,
+
+            date: '2025-12-31',
+
+            amount: 1,
+
+            description: 'OPENING COVERAGE',
+
+            unexplained: 1
+        );
+
+        $transaction =
+            $this->bank(
+                account: $account,
+
+                date: '2026-01-02',
+
+                amount: 60,
+
+                description: 'OTHER COMPANY LTD',
+
+                unexplained: 60
+            );
+
+        $transaction->update([
+            'transaction_type' => 'internal_transfer',
+
+            'match_status' => 'ignored',
+
+            'match_confidence' => 100,
+
+            'matched_by' => null,
+
+            'matched_at' => null,
+
+            'metadata' => array_merge(
+                $transaction->metadata ?? [],
+                [
+                    'reconciliation_provenance' => 'automated_non_client',
+                ]
+            ),
+        ]);
+
+        $result =
+            app(
+                ClientPaymentEvidenceSearchService::class
+            )->search(
+                $client->id
+            );
+
+        $this->assertSame(
+            0,
+            $result->exactAmountCoincidenceCount
+        );
+
+        $this->assertSame(
+            'no_supported_payment_candidate_found',
+            $result->state
+        );
+    }
+
+    public function test_reconciled_transaction_remains_closed_payment_evidence(): void
+    {
+        $client =
+            $this->clientWithInvoice(
+                name: 'Acme Ltd',
+
+                invoiceNumber: 'RECONCILED',
+
+                amount: 60
+            );
+
+        $account =
+            BankAccount::factory()->create();
+
+        $transaction =
+            $this->bank(
+                account: $account,
+
+                date: '2026-01-02',
+
+                amount: 60,
+
+                description: 'OTHER COMPANY LTD',
+
+                unexplained: 60
+            );
+
+        $transaction->update([
+            'match_status' => 'reconciled',
+        ]);
+
+        $result =
+            app(
+                ClientPaymentEvidenceSearchService::class
+            )->search(
+                $client->id
+            );
+
+        $this->assertSame(
+            0,
+            $result->exactAmountCoincidenceCount
         );
     }
 
