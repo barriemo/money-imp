@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Reconciliation\Review\ReconciliationReviewPriorityService;
 use App\Domains\Reconciliation\Services\PayerIdentityService;
 use App\Domains\Reconciliation\Services\PaymentAllocationApprovalService;
 use App\Domains\Reconciliation\Services\ReconciliationEvidencePublisher;
 use App\Models\AccountingInvoice;
 use App\Models\BankTransaction;
 use App\Models\Client;
+use App\Models\PaymentAllocation;
 use App\Models\PaymentIdentity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,84 +18,265 @@ use Illuminate\View\View;
 
 class ReconciliationInboxController extends Controller
 {
-    public function index(Request $request): View
-    {
-        $tab = (string) $request->query('tab', 'unknown');
+    public function index(
+        Request $request,
+        ReconciliationReviewPriorityService $reviewPriority
+    ): View {
+        $tab =
+            (string) $request
+                ->query(
+                    'tab',
+                    'unknown'
+                );
 
-        $query = BankTransaction::query()
-            ->with([
-                'client',
-                'bankAccount',
-                'paymentAllocations.invoice',
-                'client.invoices' => fn ($query) => $query
-                    ->where('outstanding_amount', '>', 0)
-                    ->orderBy('due_date'),
-            ])
-            ->where('amount', '>', 0)
-            ->orderByDesc('transaction_date')
-            ->orderByDesc('created_at');
+        $transactions = null;
+        $reviewItems = null;
+        $reviewBandCounts = [];
 
-        match ($tab) {
-            'known' => $query
-                ->where('match_status', 'suggested')
-                ->whereNotNull('client_id')
-                ->whereDoesntHave(
-                    'paymentAllocations',
-                    fn ($query) => $query->where('status', 'suggested')
-                ),
+        if ($tab === 'ready') {
+            $ready =
+                $reviewPriority->ready();
 
-            'ready' => $query
-                ->whereHas(
-                    'paymentAllocations',
-                    fn ($query) => $query->where('status', 'suggested')
-                ),
+            $reviewBandCounts =
+                $reviewPriority->bandCounts(
+                    $ready
+                );
 
-            'ignored' => $query
-                ->where('match_status', 'ignored'),
+            $reviewItems =
+                $reviewPriority->paginate(
+                    items: $ready,
 
-            default => $query
-                ->where('match_status', 'unmatched'),
-        };
+                    page: (int) $request
+                        ->query(
+                            'page',
+                            1
+                        ),
 
-        return view('reconciliation.index', [
-            'tab' => $tab,
-            'transactions' => $query->paginate(50)->withQueryString(),
+                    perPage: 50,
 
-            'clients' => Client::query()
-                ->where('status', 'active')
-                ->orderBy('name')
-                ->get(['id', 'name']),
+                    path: route(
+                        'reconciliation.index'
+                    ),
 
-            'counts' => [
-                'ready' => BankTransaction::query()
-                    ->where('amount', '>', 0)
-                    ->whereHas(
-                        'paymentAllocations',
-                        fn ($query) => $query->where('status', 'suggested')
+                    query: [
+                        'tab' => 'ready',
+                    ]
+                );
+        } else {
+            $query =
+                BankTransaction::query()
+                    ->with([
+                        'client',
+                        'bankAccount',
+                        'paymentAllocations.invoice',
+                        'client.invoices' => fn ($query) => $query
+                            ->where(
+                                'outstanding_amount',
+                                '>',
+                                0
+                            )
+                            ->orderBy(
+                                'due_date'
+                            ),
+                    ])
+                    ->where(
+                        'amount',
+                        '>',
+                        0
                     )
-                    ->count(),
+                    ->orderByDesc(
+                        'transaction_date'
+                    )
+                    ->orderByDesc(
+                        'created_at'
+                    );
 
-                'known' => BankTransaction::query()
-                    ->where('amount', '>', 0)
-                    ->where('match_status', 'suggested')
-                    ->whereNotNull('client_id')
+            match ($tab) {
+                'known' => $query
+                    ->where(
+                        'match_status',
+                        'suggested'
+                    )
+                    ->whereNotNull(
+                        'client_id'
+                    )
                     ->whereDoesntHave(
                         'paymentAllocations',
-                        fn ($query) => $query->where('status', 'suggested')
+                        fn ($query) => $query
+                            ->where(
+                                'status',
+                                'suggested'
+                            )
+                    ),
+
+                'ignored' => $query
+                    ->where(
+                        'match_status',
+                        'ignored'
+                    ),
+
+                default => $query
+                    ->where(
+                        'match_status',
+                        'unmatched'
+                    ),
+            };
+
+            $transactions =
+                $query
+                    ->paginate(
+                        50
                     )
-                    ->count(),
+                    ->withQueryString();
+        }
 
-                'unknown' => BankTransaction::query()
-                    ->where('amount', '>', 0)
-                    ->where('match_status', 'unmatched')
-                    ->count(),
+        return view(
+            'reconciliation.index',
+            [
+                'tab' => $tab,
 
-                'ignored' => BankTransaction::query()
-                    ->where('amount', '>', 0)
-                    ->where('match_status', 'ignored')
-                    ->count(),
-            ],
-        ]);
+                'transactions' => $transactions,
+
+                'reviewItems' => $reviewItems,
+
+                'reviewBandCounts' => $reviewBandCounts,
+
+                'clients' => Client::query()
+                    ->where(
+                        'status',
+                        'active'
+                    )
+                    ->orderBy(
+                        'name'
+                    )
+                    ->get([
+                        'id',
+                        'name',
+                    ]),
+
+                'counts' => [
+                    'ready' => PaymentAllocation::query()
+                        ->where(
+                            'status',
+                            'suggested'
+                        )
+                        ->count(),
+
+                    'known' => BankTransaction::query()
+                        ->where(
+                            'amount',
+                            '>',
+                            0
+                        )
+                        ->where(
+                            'match_status',
+                            'suggested'
+                        )
+                        ->whereNotNull(
+                            'client_id'
+                        )
+                        ->whereDoesntHave(
+                            'paymentAllocations',
+                            fn ($query) => $query
+                                ->where(
+                                    'status',
+                                    'suggested'
+                                )
+                        )
+                        ->count(),
+
+                    'unknown' => BankTransaction::query()
+                        ->where(
+                            'amount',
+                            '>',
+                            0
+                        )
+                        ->where(
+                            'match_status',
+                            'unmatched'
+                        )
+                        ->count(),
+
+                    'ignored' => BankTransaction::query()
+                        ->where(
+                            'amount',
+                            '>',
+                            0
+                        )
+                        ->where(
+                            'match_status',
+                            'ignored'
+                        )
+                        ->count(),
+                ],
+            ]
+        );
+    }
+
+    public function approveSuggestion(
+        Request $request,
+        PaymentAllocation $allocation,
+        PaymentAllocationApprovalService $approval,
+        ReconciliationReviewPriorityService $reviewPriority
+    ): RedirectResponse {
+        $priority =
+            $reviewPriority->forAllocation(
+                $allocation
+            );
+
+        if (! $priority->actionable) {
+            return back()->with(
+                'error',
+                'This suggestion cannot currently be approved. Review the warning and reject or correct the evidence first.'
+            );
+        }
+
+        $approved =
+            $approval->approve(
+                allocation: $allocation,
+
+                userId: (string) $request
+                    ->user()
+                    ->id
+            );
+
+        return back()->with(
+            'success',
+            'Approved £'
+                .number_format(
+                    (float) $approved->amount,
+                    2
+                )
+                .' against invoice '
+                .(
+                    $approved
+                        ->invoice
+                        ?->invoice_number
+                    ?? 'unknown'
+                )
+                .'.'
+        );
+    }
+
+    public function rejectSuggestion(
+        Request $request,
+        PaymentAllocation $allocation,
+        PaymentAllocationApprovalService $approval
+    ): RedirectResponse {
+        $approval->reject(
+            allocation: $allocation,
+
+            userId: (string) $request
+                ->user()
+                ->id,
+
+            reason: 'Rejected during prioritised reconciliation review.'
+        );
+
+        return back()->with(
+            'success',
+            'Suggestion rejected. The transaction remains available for further reconciliation.'
+        );
     }
 
     public function assignClient(

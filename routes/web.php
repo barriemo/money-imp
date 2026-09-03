@@ -74,6 +74,22 @@ Route::middleware('auth')->group(function (): void {
     )->name('reconciliation.index');
 
     Route::post(
+        '/reconciliation/suggestions/{allocation}/approve',
+        [
+            ReconciliationInboxController::class,
+            'approveSuggestion',
+        ]
+    )->name('reconciliation.suggestions.approve');
+
+    Route::post(
+        '/reconciliation/suggestions/{allocation}/reject',
+        [
+            ReconciliationInboxController::class,
+            'rejectSuggestion',
+        ]
+    )->name('reconciliation.suggestions.reject');
+
+    Route::post(
         '/reconciliation/{transaction}/client',
         [ReconciliationInboxController::class, 'assignClient']
     )->name('reconciliation.assign-client');

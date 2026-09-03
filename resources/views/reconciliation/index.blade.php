@@ -130,6 +130,101 @@
             color: #aaa;
         }
 
+        .review-note {
+            margin: 0 0 20px;
+            padding: 16px 18px;
+            border: 1px solid #333;
+            border-radius: 10px;
+            color: #bbb;
+            background: #151515;
+        }
+
+        .review-bands {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .review-band {
+            padding: 9px 12px;
+            border: 1px solid #333;
+            border-radius: 999px;
+            color: #ccc;
+        }
+
+        .priority {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+
+        .priority-badge {
+            padding: 6px 9px;
+            border-radius: 7px;
+            background: #eee;
+            color: #111;
+            font-weight: 800;
+        }
+
+        .priority-score {
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        .evidence {
+            margin-top: 16px;
+            padding: 15px;
+            background: #131313;
+            border-radius: 10px;
+        }
+
+        .evidence ul,
+        .warning-box ul {
+            margin: 10px 0 0;
+            padding-left: 21px;
+        }
+
+        .warning-box {
+            margin-top: 14px;
+            padding: 14px;
+            background: #321d12;
+            border: 1px solid #684025;
+            border-radius: 10px;
+        }
+
+        .stale-box {
+            margin-top: 14px;
+            padding: 14px;
+            background: #282828;
+            border: 1px solid #444;
+            border-radius: 10px;
+            color: #bbb;
+        }
+
+        .review-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+
+        .review-actions form {
+            margin-top: 0;
+        }
+
+        .approve {
+            background: #f2f2f2;
+            color: #111;
+        }
+
+        .reject {
+            background: transparent;
+            color: #bbb;
+        }
+
         .invoice {
             margin-top: 16px;
             padding: 15px;
@@ -148,6 +243,12 @@
     @if (session('success'))
         <div class="flash">
             {{ session('success') }}
+        </div>
+    @endif
+
+    @if (session('error'))
+        <div class="warning-box">
+            {{ session('error') }}
         </div>
     @endif
 
@@ -179,6 +280,189 @@
         @endforeach
     </datalist>
 
+    @if ($tab === 'ready')
+        <div class="review-note">
+            <strong>Human review queue.</strong>
+            Review priority orders the work; it is not payment truth,
+            investigation confidence, or an auto-approval threshold.
+            Every approval still requires a human decision.
+        </div>
+
+        <div class="review-bands">
+            @foreach ([
+                'review_first' => 'Review first',
+                'strong_review' => 'Strong review',
+                'normal_review' => 'Normal review',
+                'needs_care' => 'Needs care',
+                'stale' => 'Stale',
+            ] as $band => $label)
+                <div class="review-band">
+                    <strong>{{ $reviewBandCounts[$band] ?? 0 }}</strong>
+                    {{ $label }}
+                </div>
+            @endforeach
+        </div>
+
+        @forelse ($reviewItems as $review)
+            @php
+                $allocation = $review->allocation;
+                $transaction = $allocation->transaction;
+                $invoice = $allocation->invoice;
+            @endphp
+
+            <article class="transaction">
+                <div class="priority">
+                    <span class="priority-badge">
+                        {{ $review->bandLabel }}
+                    </span>
+
+                    <span class="priority-score">
+                        Review priority {{ $review->score }}/100
+                    </span>
+                </div>
+
+                <div class="amount">
+                    £{{ number_format((float) $allocation->amount, 2) }}
+                </div>
+
+                <div class="meta">
+                    Suggested allocation from a
+                    £{{ number_format((float) $transaction->amount, 2) }}
+                    receipt
+
+                    @if ($transaction->transaction_date)
+                        · {{ $transaction->transaction_date->format('d M Y') }}
+                    @endif
+
+                    @if ($transaction->bankAccount)
+                        · {{ $transaction->bankAccount->name }}
+                    @endif
+                </div>
+
+                <div class="description">
+                    {{ $transaction->description }}
+                </div>
+
+                <div class="client">
+                    Client:
+                    <strong>
+                        {{ $transaction->client?->name ?? 'Unknown' }}
+                    </strong>
+                </div>
+
+                <div class="invoice">
+                    <strong>
+                        Invoice {{ $invoice->invoice_number ?? 'unknown' }}
+                    </strong>
+
+                    <div class="meta">
+                        Source outstanding:
+                        £{{ number_format($review->sourceOutstanding, 2) }}
+
+                        · Current allocatable balance:
+                        £{{ number_format($review->invoiceBalance, 2) }}
+
+                        · Approval would allocate:
+                        £{{ number_format($review->effectiveApprovalAmount, 2) }}
+                    </div>
+                </div>
+
+                <div class="evidence">
+                    <strong>Why this is in the queue</strong>
+
+                    <ul>
+                        @foreach ($review->reasons as $reason)
+                            <li>{{ $reason }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+
+                @if ($review->warnings !== [])
+                    <div class="warning-box">
+                        <strong>Review warning</strong>
+
+                        <ul>
+                            @foreach ($review->warnings as $warning)
+                                <li>{{ $warning }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
+                <div class="meta">
+                    Match method:
+                    {{ $allocation->match_method ?? 'unknown' }}
+
+                    · Engine confidence:
+                    {{ number_format((float) $allocation->confidence, 0) }}%
+
+                    · Engine confidence is shown as source metadata,
+                    not as Money Imp truth confidence.
+                </div>
+
+                @if ($review->actionable)
+                    <div class="review-actions">
+                        <form
+                            method="POST"
+                            action="{{ route('reconciliation.suggestions.approve', $allocation) }}"
+                        >
+                            @csrf
+
+                            <button
+                                class="approve"
+                                type="submit"
+                            >
+                                Approve
+                                £{{ number_format($review->effectiveApprovalAmount, 2) }}
+                            </button>
+                        </form>
+
+                        <form
+                            method="POST"
+                            action="{{ route('reconciliation.suggestions.reject', $allocation) }}"
+                        >
+                            @csrf
+
+                            <button
+                                class="reject"
+                                type="submit"
+                            >
+                                Reject suggestion
+                            </button>
+                        </form>
+                    </div>
+                @else
+                    <div class="stale-box">
+                        This suggestion is not currently approvable.
+                        Reject it or correct the underlying reconciliation
+                        evidence instead of treating it as payment truth.
+                    </div>
+
+                    <div class="review-actions">
+                        <form
+                            method="POST"
+                            action="{{ route('reconciliation.suggestions.reject', $allocation) }}"
+                        >
+                            @csrf
+
+                            <button
+                                class="reject"
+                                type="submit"
+                            >
+                                Reject suggestion
+                            </button>
+                        </form>
+                    </div>
+                @endif
+            </article>
+        @empty
+            <div class="review-note">
+                No payment suggestions currently require review.
+            </div>
+        @endforelse
+
+        {{ $reviewItems->links() }}
+    @else
     @foreach ($transactions as $transaction)
         <article class="transaction">
             <div class="amount">
@@ -307,6 +591,7 @@
     @endforeach
 
     {{ $transactions->links() }}
+    @endif
 </main>
 
 <script>
