@@ -31,10 +31,24 @@ class ReconciliationCandidateService
         BankTransaction::query()
             ->where('match_status', 'unmatched')
             ->where('amount', '>', 0)
-            ->with('bankAccount')
+            ->with([
+                'bankAccount',
+                'paymentAllocations',
+            ])
             ->chunkById(200, function ($transactions) use (&$stats): void {
                 foreach ($transactions as $transaction) {
                     $stats['considered']++;
+
+                    if (
+                        $transaction
+                            ->paymentAllocations
+                            ->contains(
+                                fn (PaymentAllocation $allocation) => $allocation->status
+                                    === PaymentAllocation::STATUS_HISTORICAL_CORROBORATION
+                            )
+                    ) {
+                        continue;
+                    }
 
                     if ($this->looksNonClient($transaction)) {
                         $transaction->update([
@@ -91,6 +105,26 @@ class ReconciliationCandidateService
                     );
 
                     if (! $invoice) {
+                        continue;
+                    }
+
+                    $existingAllocation =
+                        PaymentAllocation::query()
+                            ->where(
+                                'bank_transaction_id',
+                                $transaction->id
+                            )
+                            ->where(
+                                'accounting_invoice_id',
+                                $invoice['invoice']->id
+                            )
+                            ->first();
+
+                    if (
+                        $existingAllocation
+                        && $existingAllocation->status
+                            === PaymentAllocation::STATUS_HISTORICAL_CORROBORATION
+                    ) {
                         continue;
                     }
 

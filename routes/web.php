@@ -74,6 +74,26 @@ Route::middleware('auth')->group(function (): void {
     )->name('reconciliation.index');
 
     Route::post(
+        '/reconciliation/suggestions/{allocation}/resolve/historical',
+        [
+            ReconciliationInboxController::class,
+            'resolveHistoricalSuggestion',
+        ]
+    )->name(
+        'reconciliation.suggestions.resolve-historical'
+    );
+
+    Route::post(
+        '/reconciliation/suggestions/{allocation}/resolve/approved',
+        [
+            ReconciliationInboxController::class,
+            'resolveApprovedSuggestion',
+        ]
+    )->name(
+        'reconciliation.suggestions.resolve-approved'
+    );
+
+    Route::post(
         '/reconciliation/suggestions/{allocation}/approve',
         [
             ReconciliationInboxController::class,

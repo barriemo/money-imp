@@ -225,6 +225,46 @@
             color: #bbb;
         }
 
+        .resolution-options {
+            margin-top: 16px;
+            padding: 16px;
+            background: #10151a;
+            border: 1px solid #253545;
+            border-radius: 10px;
+        }
+
+        .resolution-option {
+            margin-top: 12px;
+            padding: 13px;
+            border: 1px solid #2c3945;
+            border-radius: 9px;
+        }
+
+        .resolution-option:first-of-type {
+            margin-top: 10px;
+        }
+
+        .resolution-option form {
+            display: inline-flex;
+            margin-right: 8px;
+        }
+
+        .historical {
+            background: #1c2b24;
+            border-color: #31503e;
+        }
+
+        .historical-label {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 5px 8px;
+            border-radius: 6px;
+            background: #203329;
+            color: #bfe1ca;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
         .invoice {
             margin-top: 16px;
             padding: 15px;
@@ -257,6 +297,7 @@
             'unknown' => 'Unknown',
             'known' => 'Client known',
             'ready' => 'Ready',
+            'historical' => 'Historical evidence',
             'ignored' => 'Ignored',
         ] as $key => $label)
             <a
@@ -400,11 +441,188 @@
                     not as Money Imp truth confidence.
                 </div>
 
-                @if ($review->actionable)
+                @if (
+                    in_array(
+                        $review->band,
+                        ['needs_care', 'stale'],
+                        true
+                    )
+                )
+                    @php
+                        $candidates =
+                            $resolutionCandidates[
+                                $allocation->id
+                            ] ?? [];
+
+                        $classification =
+                            $historicalClassifications[
+                                $allocation->id
+                            ] ?? null;
+                    @endphp
+
+                    <div class="resolution-options">
+                        <strong>
+                            {{ $review->band === 'needs_care'
+                                ? 'Resolve recurring receipt'
+                                : 'Resolve historical receipt' }}
+                        </strong>
+
+                        <div class="meta">
+                            Date proximity and same-value invoices are
+                            review context only. They are not proof of
+                            invoice attribution.
+                        </div>
+
+                        @if (
+                            $classification
+                            && $classification['classification']
+                                === 'historical_corroboration_candidate'
+                        )
+                            <div class="historical-label">
+                                Strong historical corroboration candidate:
+                                invoice reference + exact amount + source paid
+                            </div>
+                        @elseif ($classification)
+                            <div class="warning-box">
+                                Historical match requires manual judgement.
+                                The current bank evidence does not contain
+                                enough structure to label this a strong
+                                corroboration candidate.
+                            </div>
+                        @endif
+
+                        @forelse ($candidates as $candidate)
+                            @php
+                                $candidateInvoice =
+                                    $candidate['invoice'];
+                            @endphp
+
+                            <div
+                                class="resolution-option
+                                    {{ $candidate['historical_eligible']
+                                        ? 'historical'
+                                        : '' }}"
+                            >
+                                <strong>
+                                    Invoice
+                                    {{ $candidateInvoice->invoice_number }}
+                                </strong>
+
+                                @if ($candidate['current_target'])
+                                    · current suggestion
+                                @endif
+
+                                <div class="meta">
+                                    Invoice
+                                    {{ optional(
+                                        $candidateInvoice->invoice_date
+                                    )->format('d M Y') ?? 'date unknown' }}
+
+                                    ·
+                                    {{ number_format(
+                                        (float) $candidate[
+                                            'days_from_receipt'
+                                        ],
+                                        0
+                                    ) }}
+                                    day(s) from receipt
+
+                                    · source status
+                                    {{ $candidateInvoice->status }}
+
+                                    · source outstanding
+                                    £{{ number_format(
+                                        (float) $candidateInvoice
+                                            ->outstanding_amount,
+                                        2
+                                    ) }}
+                                </div>
+
+                                @if (
+                                    $candidate[
+                                        'explicit_invoice_reference'
+                                    ]
+                                )
+                                    <div class="historical-label">
+                                        Invoice reference appears in bank evidence
+                                    </div>
+                                @endif
+
+                                @if (
+                                    $candidate[
+                                        'historical_eligible'
+                                    ]
+                                )
+                                    <form
+                                        method="POST"
+                                        action="{{ route(
+                                            'reconciliation.suggestions.resolve-historical',
+                                            $allocation
+                                        ) }}"
+                                    >
+                                        @csrf
+
+                                        <input
+                                            type="hidden"
+                                            name="invoice_id"
+                                            value="{{ $candidateInvoice->id }}"
+                                        >
+
+                                        <button type="submit">
+                                            Record historical match
+                                        </button>
+                                    </form>
+                                @endif
+
+                                @if (
+                                    $candidate[
+                                        'approval_eligible'
+                                    ]
+                                )
+                                    <form
+                                        method="POST"
+                                        action="{{ route(
+                                            'reconciliation.suggestions.resolve-approved',
+                                            $allocation
+                                        ) }}"
+                                    >
+                                        @csrf
+
+                                        <input
+                                            type="hidden"
+                                            name="invoice_id"
+                                            value="{{ $candidateInvoice->id }}"
+                                        >
+
+                                        <button
+                                            class="approve"
+                                            type="submit"
+                                        >
+                                            Allocate receipt here
+                                        </button>
+                                    </form>
+                                @endif
+                            </div>
+                        @empty
+                            <div class="warning-box">
+                                No exact same-value invoice candidates
+                                are available for this receipt.
+                            </div>
+                        @endforelse
+                    </div>
+                @endif
+
+                @if (
+                    $review->actionable
+                    && $review->band !== 'needs_care'
+                )
                     <div class="review-actions">
                         <form
                             method="POST"
-                            action="{{ route('reconciliation.suggestions.approve', $allocation) }}"
+                            action="{{ route(
+                                'reconciliation.suggestions.approve',
+                                $allocation
+                            ) }}"
                         >
                             @csrf
 
@@ -413,13 +631,45 @@
                                 type="submit"
                             >
                                 Approve
-                                £{{ number_format($review->effectiveApprovalAmount, 2) }}
+                                £{{ number_format(
+                                    $review->effectiveApprovalAmount,
+                                    2
+                                ) }}
                             </button>
                         </form>
 
                         <form
                             method="POST"
-                            action="{{ route('reconciliation.suggestions.reject', $allocation) }}"
+                            action="{{ route(
+                                'reconciliation.suggestions.reject',
+                                $allocation
+                            ) }}"
+                        >
+                            @csrf
+
+                            <button
+                                class="reject"
+                                type="submit"
+                            >
+                                Reject suggestion
+                            </button>
+                        </form>
+                    </div>
+                @elseif ($review->band === 'needs_care')
+                    <div class="stale-box">
+                        Generic approval is blocked because competing
+                        receipts target the same invoice. Resolve this
+                        receipt against an explicit invoice above or
+                        reject the suggestion.
+                    </div>
+
+                    <div class="review-actions">
+                        <form
+                            method="POST"
+                            action="{{ route(
+                                'reconciliation.suggestions.reject',
+                                $allocation
+                            ) }}"
                         >
                             @csrf
 
@@ -433,15 +683,20 @@
                     </div>
                 @else
                     <div class="stale-box">
-                        This suggestion is not currently approvable.
-                        Reject it or correct the underlying reconciliation
-                        evidence instead of treating it as payment truth.
+                        This suggestion cannot be approved against its
+                        current invoice balance. Preserve a reviewed
+                        bank-to-invoice relationship as historical
+                        corroboration where supported, choose another
+                        invoice, or reject it.
                     </div>
 
                     <div class="review-actions">
                         <form
                             method="POST"
-                            action="{{ route('reconciliation.suggestions.reject', $allocation) }}"
+                            action="{{ route(
+                                'reconciliation.suggestions.reject',
+                                $allocation
+                            ) }}"
                         >
                             @csrf
 
@@ -462,6 +717,131 @@
         @endforelse
 
         {{ $reviewItems->links() }}
+    @elseif ($tab === 'historical')
+        <div class="review-note">
+            <strong>Historical corroborating evidence.</strong>
+            These records preserve a human-reviewed bank-to-invoice
+            relationship where the accounting source already marks
+            the invoice paid. They are not approved/imported invoice
+            allocations and do not themselves create confirmed
+            invoice-allocation truth.
+        </div>
+
+        @forelse ($historicalItems as $allocation)
+            <article class="transaction">
+                <div class="priority">
+                    <span class="priority-badge">
+                        Historical evidence
+                    </span>
+                </div>
+
+                <div class="amount">
+                    £{{ number_format(
+                        (float) $allocation->amount,
+                        2
+                    ) }}
+                </div>
+
+                <div class="meta">
+                    {{ optional(
+                        $allocation
+                            ->transaction
+                            ?->transaction_date
+                    )->format('d M Y') ?? 'date unknown' }}
+
+                    @if (
+                        $allocation
+                            ->transaction
+                            ?->bankAccount
+                    )
+                        ·
+                        {{ $allocation
+                            ->transaction
+                            ->bankAccount
+                            ->name }}
+                    @endif
+                </div>
+
+                <div class="description">
+                    {{ $allocation
+                        ->transaction
+                        ?->description }}
+                </div>
+
+                <div class="client">
+                    Client:
+                    <strong>
+                        {{ $allocation
+                            ->transaction
+                            ?->client
+                            ?->name
+                            ?? $allocation
+                                ->invoice
+                                ?->client
+                                ?->name
+                            ?? 'Unknown' }}
+                    </strong>
+                </div>
+
+                <div class="invoice">
+                    Invoice
+                    <strong>
+                        {{ $allocation
+                            ->invoice
+                            ?->invoice_number
+                            ?? 'unknown' }}
+                    </strong>
+
+                    <div class="meta">
+                        Source status:
+                        {{ $allocation
+                            ->invoice
+                            ?->status
+                            ?? 'unknown' }}
+
+                        · source paid:
+                        £{{ number_format(
+                            (float) (
+                                $allocation
+                                    ->invoice
+                                    ?->paid_amount
+                                ?? 0
+                            ),
+                            2
+                        ) }}
+
+                        · source outstanding:
+                        £{{ number_format(
+                            (float) (
+                                $allocation
+                                    ->invoice
+                                    ?->outstanding_amount
+                                ?? 0
+                            ),
+                            2
+                        ) }}
+                    </div>
+                </div>
+
+                <div class="historical-label">
+                    Non-canonical invoice corroboration
+                </div>
+
+                <div class="meta">
+                    {{ data_get(
+                        $allocation->metadata,
+                        'historical_corroboration.evidence_basis',
+                        'human-reviewed historical evidence'
+                    ) }}
+                </div>
+            </article>
+        @empty
+            <div class="review-note">
+                No historical corroborations have been recorded yet.
+            </div>
+        @endforelse
+
+        {{ $historicalItems->links() }}
     @else
     @foreach ($transactions as $transaction)
         <article class="transaction">

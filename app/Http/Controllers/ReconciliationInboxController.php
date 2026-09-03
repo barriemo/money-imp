@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Reconciliation\Resolution\ReconciliationSuggestionResolutionService;
 use App\Domains\Reconciliation\Review\ReconciliationReviewPriorityService;
 use App\Domains\Reconciliation\Services\PayerIdentityService;
 use App\Domains\Reconciliation\Services\PaymentAllocationApprovalService;
@@ -20,7 +21,8 @@ class ReconciliationInboxController extends Controller
 {
     public function index(
         Request $request,
-        ReconciliationReviewPriorityService $reviewPriority
+        ReconciliationReviewPriorityService $reviewPriority,
+        ReconciliationSuggestionResolutionService $resolution
     ): View {
         $tab =
             (string) $request
@@ -31,7 +33,10 @@ class ReconciliationInboxController extends Controller
 
         $transactions = null;
         $reviewItems = null;
+        $historicalItems = null;
         $reviewBandCounts = [];
+        $resolutionCandidates = [];
+        $historicalClassifications = [];
 
         if ($tab === 'ready') {
             $ready =
@@ -62,6 +67,65 @@ class ReconciliationInboxController extends Controller
                         'tab' => 'ready',
                     ]
                 );
+
+            foreach ($reviewItems as $review) {
+                if (
+                    ! in_array(
+                        $review->band,
+                        [
+                            'needs_care',
+                            'stale',
+                        ],
+                        true
+                    )
+                ) {
+                    continue;
+                }
+
+                $allocation =
+                    $review->allocation;
+
+                $resolutionCandidates[
+                    $allocation->id
+                ] =
+                    $resolution
+                        ->candidates(
+                            $allocation
+                        )
+                        ->all();
+
+                if (
+                    $review->band
+                    === 'stale'
+                ) {
+                    $historicalClassifications[
+                        $allocation->id
+                    ] =
+                        $resolution
+                            ->historicalClassification(
+                                $allocation
+                            );
+                }
+            }
+        } elseif ($tab === 'historical') {
+            $historicalItems =
+                PaymentAllocation::query()
+                    ->where(
+                        'status',
+                        PaymentAllocation::STATUS_HISTORICAL_CORROBORATION
+                    )
+                    ->with([
+                        'transaction.client',
+                        'transaction.bankAccount',
+                        'invoice.client',
+                    ])
+                    ->orderByDesc(
+                        'updated_at'
+                    )
+                    ->paginate(
+                        50
+                    )
+                    ->withQueryString();
         } else {
             $query =
                 BankTransaction::query()
@@ -103,9 +167,12 @@ class ReconciliationInboxController extends Controller
                     ->whereDoesntHave(
                         'paymentAllocations',
                         fn ($query) => $query
-                            ->where(
+                            ->whereIn(
                                 'status',
-                                'suggested'
+                                [
+                                    'suggested',
+                                    PaymentAllocation::STATUS_HISTORICAL_CORROBORATION,
+                                ]
                             )
                     ),
 
@@ -139,7 +206,13 @@ class ReconciliationInboxController extends Controller
 
                 'reviewItems' => $reviewItems,
 
+                'historicalItems' => $historicalItems,
+
                 'reviewBandCounts' => $reviewBandCounts,
+
+                'resolutionCandidates' => $resolutionCandidates,
+
+                'historicalClassifications' => $historicalClassifications,
 
                 'clients' => Client::query()
                     ->where(
@@ -162,6 +235,13 @@ class ReconciliationInboxController extends Controller
                         )
                         ->count(),
 
+                    'historical' => PaymentAllocation::query()
+                        ->where(
+                            'status',
+                            PaymentAllocation::STATUS_HISTORICAL_CORROBORATION
+                        )
+                        ->count(),
+
                     'known' => BankTransaction::query()
                         ->where(
                             'amount',
@@ -178,9 +258,12 @@ class ReconciliationInboxController extends Controller
                         ->whereDoesntHave(
                             'paymentAllocations',
                             fn ($query) => $query
-                                ->where(
+                                ->whereIn(
                                     'status',
-                                    'suggested'
+                                    [
+                                        'suggested',
+                                        PaymentAllocation::STATUS_HISTORICAL_CORROBORATION,
+                                    ]
                                 )
                         )
                         ->count(),
@@ -224,10 +307,15 @@ class ReconciliationInboxController extends Controller
                 $allocation
             );
 
-        if (! $priority->actionable) {
+        if (
+            ! $priority->actionable
+            || $priority->band === 'needs_care'
+        ) {
             return back()->with(
                 'error',
-                'This suggestion cannot currently be approved. Review the warning and reject or correct the evidence first.'
+                $priority->band === 'needs_care'
+                    ? 'This suggestion has competing reconciliation evidence. Resolve it against an explicit invoice instead of using generic approval.'
+                    : 'This suggestion cannot currently be approved. Review the warning and reject or correct the evidence first.'
             );
         }
 
@@ -276,6 +364,106 @@ class ReconciliationInboxController extends Controller
         return back()->with(
             'success',
             'Suggestion rejected. The transaction remains available for further reconciliation.'
+        );
+    }
+
+    public function resolveHistoricalSuggestion(
+        Request $request,
+        PaymentAllocation $allocation,
+        ReconciliationSuggestionResolutionService $resolution
+    ): RedirectResponse {
+        $validated =
+            $request->validate([
+                'invoice_id' => [
+                    'required',
+                    'uuid',
+                    'exists:accounting_invoices,id',
+                ],
+            ]);
+
+        $invoice =
+            AccountingInvoice::findOrFail(
+                $validated[
+                    'invoice_id'
+                ]
+            );
+
+        $resolved =
+            $resolution->resolveHistorical(
+                allocation: $allocation,
+
+                invoice: $invoice,
+
+                userId: (string) $request
+                    ->user()
+                    ->id
+            );
+
+        return back()->with(
+            'success',
+            'Recorded £'
+                .number_format(
+                    (float) $resolved->amount,
+                    2
+                )
+                .' as historical corroboration for invoice '
+                .(
+                    $resolved
+                        ->invoice
+                        ?->invoice_number
+                    ?? 'unknown'
+                )
+                .'. This preserves the bank-to-invoice evidence but does not create an approved/imported invoice allocation.'
+        );
+    }
+
+    public function resolveApprovedSuggestion(
+        Request $request,
+        PaymentAllocation $allocation,
+        ReconciliationSuggestionResolutionService $resolution
+    ): RedirectResponse {
+        $validated =
+            $request->validate([
+                'invoice_id' => [
+                    'required',
+                    'uuid',
+                    'exists:accounting_invoices,id',
+                ],
+            ]);
+
+        $invoice =
+            AccountingInvoice::findOrFail(
+                $validated[
+                    'invoice_id'
+                ]
+            );
+
+        $resolved =
+            $resolution->resolveApproved(
+                allocation: $allocation,
+
+                invoice: $invoice,
+
+                userId: (string) $request
+                    ->user()
+                    ->id
+            );
+
+        return back()->with(
+            'success',
+            'Approved £'
+                .number_format(
+                    (float) $resolved->amount,
+                    2
+                )
+                .' against invoice '
+                .(
+                    $resolved
+                        ->invoice
+                        ?->invoice_number
+                    ?? 'unknown'
+                )
+                .' after recurring-payment review.'
         );
     }
 

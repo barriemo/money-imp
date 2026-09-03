@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PaymentAllocation extends MoneyImpModel
 {
+    public const STATUS_HISTORICAL_CORROBORATION =
+        'historical_corroboration';
+
     protected function casts(): array
     {
         return [
