@@ -776,13 +776,27 @@ final class ClientPaymentEvidenceSearchService
                 continue;
             }
 
+            /*
+             * A rejected allocation is evidence that one proposed
+             * relationship was wrong. It is not evidence that the
+             * underlying receipt ceased to exist.
+             *
+             * Only a still-active/reviewed allocation should suppress
+             * this weak exact-amount coincidence check.
+             */
             if (
                 $transaction
                     ->paymentAllocations
-                    ->isNotEmpty()
+                    ->contains(
+                        fn ($allocation) => $allocation->status
+                            !== 'rejected'
+                    )
                 || $transaction
                     ->supplierPaymentAllocations
-                    ->isNotEmpty()
+                    ->contains(
+                        fn ($allocation) => $allocation->status
+                            !== 'rejected'
+                    )
             ) {
                 continue;
             }

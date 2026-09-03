@@ -3,12 +3,15 @@
 namespace Tests\Feature;
 
 use App\Domains\BusinessBrain\PaymentTruth\Investigation\ClientPaymentEvidenceSearchService;
+use App\Models\AccountingBill;
 use App\Models\AccountingInvoice;
 use App\Models\BankAccount;
 use App\Models\BankTransaction;
 use App\Models\Client;
 use App\Models\ExternalConnection;
 use App\Models\ExternalRecord;
+use App\Models\PaymentAllocation;
+use App\Models\Supplier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -480,6 +483,227 @@ class ClientPaymentEvidenceSearchServiceTest extends TestCase
         );
     }
 
+    public function test_rejected_client_allocation_does_not_hide_exact_amount_receipt_evidence(): void
+    {
+        $client =
+            $this->clientWithInvoice(
+                name: 'Acme Ltd',
+
+                invoiceNumber: '123',
+
+                amount: 60
+            );
+
+        $invoice =
+            AccountingInvoice::query()
+                ->where(
+                    'client_id',
+                    $client->id
+                )
+                ->sole();
+
+        $account =
+            BankAccount::factory()->create();
+
+        $transaction =
+            $this->bank(
+                account: $account,
+
+                date: '2026-01-01',
+
+                amount: 60,
+
+                description: 'OTHER COMPANY LTD',
+
+                unexplained: 60
+            );
+
+        PaymentAllocation::create([
+            'bank_transaction_id' => $transaction->id,
+
+            'accounting_invoice_id' => $invoice->id,
+
+            'amount' => 60,
+
+            'status' => 'rejected',
+
+            'confidence' => 100,
+
+            'match_method' => 'client_and_exact_amount',
+
+            'metadata' => [
+                'rejection_reason' => 'Wrong invoice suggestion.',
+            ],
+        ]);
+
+        $result =
+            app(
+                ClientPaymentEvidenceSearchService::class
+            )->search(
+                $client->id
+            );
+
+        $this->assertSame(
+            1,
+            $result->exactAmountCoincidenceCount
+        );
+
+        $this->assertSame(
+            1,
+            $result->namedOtherExactAmountCoincidenceCount
+        );
+
+        $this->assertSame(
+            'no_supported_payment_candidate_found',
+            $result->state
+        );
+    }
+
+    public function test_active_client_allocation_still_suppresses_exact_amount_coincidence(): void
+    {
+        $client =
+            $this->clientWithInvoice(
+                name: 'Acme Ltd',
+
+                invoiceNumber: '123',
+
+                amount: 60
+            );
+
+        $invoice =
+            AccountingInvoice::query()
+                ->where(
+                    'client_id',
+                    $client->id
+                )
+                ->sole();
+
+        $account =
+            BankAccount::factory()->create();
+
+        $transaction =
+            $this->bank(
+                account: $account,
+
+                date: '2026-01-01',
+
+                amount: 60,
+
+                description: 'OTHER COMPANY LTD',
+
+                unexplained: 60
+            );
+
+        PaymentAllocation::create([
+            'bank_transaction_id' => $transaction->id,
+
+            'accounting_invoice_id' => $invoice->id,
+
+            'amount' => 60,
+
+            'status' => 'suggested',
+
+            'confidence' => 100,
+
+            'match_method' => 'client_and_exact_amount',
+        ]);
+
+        $result =
+            app(
+                ClientPaymentEvidenceSearchService::class
+            )->search(
+                $client->id
+            );
+
+        $this->assertSame(
+            0,
+            $result->exactAmountCoincidenceCount
+        );
+    }
+
+    public function test_rejected_supplier_allocation_does_not_hide_client_exact_amount_evidence(): void
+    {
+        $client =
+            $this->clientWithInvoice(
+                name: 'Acme Ltd',
+
+                invoiceNumber: '123',
+
+                amount: 60
+            );
+
+        $supplier =
+            Supplier::factory()->create([
+                'name' => 'Example Supplier Ltd',
+            ]);
+
+        $bill =
+            AccountingBill::create([
+                'supplier_id' => $supplier->id,
+
+                'status' => 'draft',
+
+                'bill_date' => '2026-01-01',
+
+                'currency' => 'GBP',
+
+                'net_amount' => 60,
+
+                'tax_amount' => 0,
+
+                'gross_amount' => 60,
+
+                'paid_amount' => 0,
+
+                'outstanding_amount' => 60,
+            ]);
+
+        $account =
+            BankAccount::factory()->create();
+
+        $transaction =
+            $this->bank(
+                account: $account,
+
+                date: '2026-01-01',
+
+                amount: 60,
+
+                description: 'OTHER COMPANY LTD',
+
+                unexplained: 60
+            );
+
+        $transaction
+            ->supplierPaymentAllocations()
+            ->create([
+                'accounting_bill_id' => $bill->id,
+
+                'amount' => 60,
+
+                'status' => 'rejected',
+
+                'confidence' => 100,
+            ]);
+
+        $result =
+            app(
+                ClientPaymentEvidenceSearchService::class
+            )->search(
+                $client->id
+            );
+
+        $this->assertSame(
+            1,
+            $result->exactAmountCoincidenceCount
+        );
+
+        $this->assertSame(
+            1,
+            $result->namedOtherExactAmountCoincidenceCount
+        );
+    }
+
     private function clientWithInvoice(
         string $name,
         string $invoiceNumber,
@@ -555,9 +779,9 @@ class ClientPaymentEvidenceSearchServiceTest extends TestCase
             ),
 
             'metadata' => [
-            'freeagent_full_description' => $description,
+                'freeagent_full_description' => $description,
 
-            'freeagent_unexplained_amount' => $unexplained,
+                'freeagent_unexplained_amount' => $unexplained,
             ],
         ]);
     }

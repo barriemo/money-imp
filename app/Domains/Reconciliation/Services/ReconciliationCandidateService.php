@@ -120,10 +120,18 @@ class ReconciliationCandidateService
                             )
                             ->first();
 
+                    /*
+                     * Candidate generation may refresh an existing
+                     * provisional suggestion, but it must never
+                     * overwrite a human/reviewed lifecycle decision.
+                     *
+                     * This protects rejected, approved, imported and
+                     * historical corroboration states.
+                     */
                     if (
                         $existingAllocation
                         && $existingAllocation->status
-                            === PaymentAllocation::STATUS_HISTORICAL_CORROBORATION
+                            !== 'suggested'
                     ) {
                         continue;
                     }

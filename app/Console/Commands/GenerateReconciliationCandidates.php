@@ -29,6 +29,11 @@ class GenerateReconciliationCandidates extends Command
                  *
                  * Human-attributed transactions and suggestions
                  * belonging to other payment engines must survive.
+                 *
+                 * Match method is not enough to prove machine ownership.
+                 * Legacy rows may use an automated-looking method without
+                 * carrying provenance. Only suggestions whose transaction
+                 * is explicitly marked automated_candidate are rebuild-owned.
                  */
                 $suggestedAllocations =
                     PaymentAllocation::query()
@@ -42,6 +47,21 @@ class GenerateReconciliationCandidates extends Command
                                 'client_and_exact_amount',
                                 'client_and_invoice_reference',
                             ]
+                        )
+                        ->whereHas(
+                            'transaction',
+                            fn ($query) => $query
+                                ->where(
+                                    'match_status',
+                                    'suggested'
+                                )
+                                ->whereNull(
+                                    'matched_by'
+                                )
+                                ->where(
+                                    'metadata->reconciliation_provenance',
+                                    'automated_candidate'
+                                )
                         )
                         ->count();
 
@@ -71,6 +91,21 @@ class GenerateReconciliationCandidates extends Command
                             'client_and_exact_amount',
                             'client_and_invoice_reference',
                         ]
+                    )
+                    ->whereHas(
+                        'transaction',
+                        fn ($query) => $query
+                            ->where(
+                                'match_status',
+                                'suggested'
+                            )
+                            ->whereNull(
+                                'matched_by'
+                            )
+                            ->where(
+                                'metadata->reconciliation_provenance',
+                                'automated_candidate'
+                            )
                     )
                     ->delete();
 
