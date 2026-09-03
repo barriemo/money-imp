@@ -37,47 +37,124 @@ class CommercialTruthGraphProvider implements TruthGraphProvider
             'client:'
             .$client->id;
 
+        /*
+         * CommercialAgreement is now an immutable contractual
+         * assertion tied to canonical ClientService truth.
+         *
+         * The graph deliberately includes agreement history rather
+         * than collapsing it into invoice-derived service inference.
+         */
         $agreements =
             CommercialAgreement::query()
+                ->with([
+                    'clientService',
+                    'supersededBy',
+                ])
                 ->where(
                     'client_id',
                     $client->id
+                )
+                ->orderBy(
+                    'created_at'
                 )
                 ->get();
 
         foreach (
             $agreements as $agreement
         ) {
+            $service =
+                $agreement->clientService;
+
+            /*
+             * The database FK should make this impossible.
+             *
+             * Do not invent a label or service identity if canonical
+             * truth is unexpectedly unavailable.
+             */
+            if ($service === null) {
+                continue;
+            }
+
             $node =
                 new TruthGraphNode(
                     type: 'commercial_agreement',
 
                     id: $agreement->id,
 
-                    label: ucfirst(
-                        $agreement->service_type
-                    )
+                    label: $service->name
                         .' agreement',
 
                     attributes: [
-                        'service_type' => $agreement->service_type,
+                        'client_id' => $agreement->client_id,
 
-                        'service_key' => $agreement->service_key,
+                        'client_service_id' => $agreement
+                            ->client_service_id,
 
-                        'cadence' => $agreement->cadence,
+                        'client_service_name' => $service->name,
 
                         'status' => $agreement->status,
 
-                        'observed_value' => (float)
-                            $agreement
-                                ->observed_value,
+                        'cadence' => $agreement->cadence,
 
-                        'monthly_equivalent' => (float)
-                            $agreement
-                                ->monthly_equivalent,
+                        'contracted_amount_pence' => $agreement
+                            ->contracted_amount_pence,
+
+                        'currency' => $agreement->currency,
+
+                        /*
+                         * Critical:
+                         *
+                         * null means there is no recurring monthly
+                         * equivalent for this assertion. Do not cast
+                         * null to 0.0.
+                         */
+                        'monthly_equivalent' => $agreement
+                            ->monthly_equivalent
+                                !== null
+                                    ? (float) $agreement
+                                        ->monthly_equivalent
+                                    : null,
+
+                        'effective_from' => $agreement
+                            ->effective_from
+                            ?->toDateString(),
+
+                        'effective_to' => $agreement
+                            ->effective_to
+                            ?->toDateString(),
+
+                        'renews_on' => $agreement
+                            ->renews_on
+                            ?->toDateString(),
+
+                        'source' => $agreement->source,
+
+                        'source_reference' => $agreement
+                            ->source_reference,
+
+                        'reviewed_by_name' => $agreement
+                            ->reviewed_by_name,
+
+                        'reviewed_at' => $agreement
+                            ->reviewed_at
+                            ?->toIso8601String(),
+
+                        'supersedes_commercial_agreement_id' => $agreement
+                            ->supersedes_commercial_agreement_id,
+
+                        'has_successor' => $agreement
+                            ->supersededBy
+                                !== null,
                     ],
 
-                    confidence: $agreement->confidence
+                    /*
+                     * A persisted agreement assertion is explicitly
+                     * human-confirmed contractual truth.
+                     *
+                     * Evidence confidence belongs to evidence rows,
+                     * not to the agreement assertion itself.
+                     */
+                    confidence: 100
                 );
 
             $nodes->push(
@@ -92,10 +169,10 @@ class CommercialTruthGraphProvider implements TruthGraphProvider
 
                     relationship: 'has_agreement',
 
-                    confidence: $agreement->confidence,
+                    confidence: 100,
 
                     evidence: [
-                        'commercial_truth',
+                        'human_confirmed_contract_truth',
                     ]
                 )
             );

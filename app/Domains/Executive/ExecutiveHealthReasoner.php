@@ -180,6 +180,8 @@ class ExecutiveHealthReasoner
 
                     'partially_reconciled' => 'Some contracted commercial terms are confirmed while other agreement candidates remain unresolved.',
 
+                    'partially_established' => 'Some contracted commercial terms are confirmed, but contracted-truth coverage is not yet complete.',
+
                     default => 'Contracted commercial terms are not yet established.',
                 };
         }

@@ -220,7 +220,7 @@ final class CurrentCommercialPositionService
                 'Canonical-service-backed observed billing uses only paid or overdue invoice evidence human-attributed either directly to a ClientService or through a current conserved composite allocation; draft, written-off, refunded, unknown and stale allocation evidence are excluded.',
                 'Unattributed evidence on an existing canonical service is excluded from recurring value until attribution is human-approved.',
                 'Recently observed, stale and historical unresolved recurring evidence is excluded from current observed value.',
-                'Contracted recurring value remains unknown until persisted commercial agreement truth is explicitly confirmed; BillingRule is operational invoicing configuration and is not contractual evidence.',
+                'Contracted recurring total remains unknown until canonical-service agreement coverage is explicitly complete; individual confirmed agreement assertions may provide only a partial known subtotal before then. BillingRule is operational invoicing configuration and is not contractual evidence.',
             ],
 
             provenance: [

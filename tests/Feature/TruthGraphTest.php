@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Domains\CommercialTruth\Services\CommercialAgreementAssertionService;
 use App\Domains\TruthGraph\TruthGraphBuilder;
 use App\Models\Client;
-use App\Models\CommercialAgreement;
+use App\Models\ClientService;
+use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -12,37 +15,52 @@ class TruthGraphTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_client_graph_contains_commercial_agreement(): void
+    public function test_client_graph_contains_canonical_commercial_agreement_assertion(): void
     {
         $client =
             Client::factory()->create();
 
-        $agreement =
-            CommercialAgreement::create([
+        $service =
+            ClientService::create([
                 'client_id' => $client->id,
 
-                'service_type' => 'hosting',
+                'name' => 'Website Hosting',
 
-                'service_key' => 'hosting',
+                'type' => 'service',
 
-                'cadence' => 'monthly',
-
-                'status' => 'confirmed',
-
-                'observed_value' => 75,
-
-                'monthly_equivalent' => 75,
-
-                'confidence' => 100,
-
-                'source' => 'test',
+                'status' => 'active',
             ]);
 
-        $graph = app(
-            TruthGraphBuilder::class
-        )->buildForClient(
-            $client
-        );
+        $reviewer =
+            User::factory()->create();
+
+        $agreement =
+            app(
+                CommercialAgreementAssertionService::class
+            )->confirm(
+                clientServiceId: $service->id,
+
+                cadence: 'monthly',
+
+                contractedAmountPence: 7500,
+
+                effectiveFrom: CarbonImmutable::parse(
+                    '2026-01-01'
+                ),
+
+                reviewedBy: $reviewer->id,
+
+                source: 'test',
+
+                reason: 'Truth graph integration test contract.'
+            );
+
+        $graph =
+            app(
+                TruthGraphBuilder::class
+            )->buildForClient(
+                $client
+            );
 
         $this->assertSame(
             'client:'
@@ -53,31 +71,49 @@ class TruthGraphTest extends TestCase
         $this->assertTrue(
             $graph['nodes']
                 ->contains(
-                    fn ($node) => $node->key() === 'commercial_agreement:'.$agreement->id
+                    fn ($node) => $node->key()
+                        === 'commercial_agreement:'
+                        .$agreement->id
                 )
         );
 
         $this->assertTrue(
             $graph['edges']
                 ->contains(
-                    fn ($edge) => $edge->relationship === 'has_agreement'
-                        && $edge->to === 'commercial_agreement:'.$agreement->id
+                    fn ($edge) => $edge->relationship
+                            === 'has_agreement'
+                        && $edge->to
+                            === 'commercial_agreement:'
+                            .$agreement->id
                 )
         );
 
-        $edge =
-            $graph['edges']
-                ->first();
+        $agreementNode =
+            $graph['nodes']
+                ->first(
+                    fn ($node) => $node->key()
+                        === 'commercial_agreement:'
+                        .$agreement->id
+                );
 
-        $this->assertSame(
-            'has_agreement',
-            $edge->relationship
+        $this->assertNotNull(
+            $agreementNode
         );
 
         $this->assertSame(
-            'commercial_agreement:'
-            .$agreement->id,
-            $edge->to
+            $service->id,
+            $agreementNode
+                ->attributes[
+                    'client_service_id'
+                ]
+        );
+
+        $this->assertSame(
+            7500,
+            $agreementNode
+                ->attributes[
+                    'contracted_amount_pence'
+                ]
         );
     }
 }

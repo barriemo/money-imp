@@ -3,11 +3,15 @@
 namespace Tests\Feature;
 
 use App\Domains\CommercialTruth\CommercialAgreementTruthService;
+use App\Domains\CommercialTruth\Services\CommercialAgreementAssertionService;
 use App\Models\AccountingInvoice;
 use App\Models\AccountingInvoiceItem;
 use App\Models\Client;
+use App\Models\ClientService;
 use App\Models\CommercialAgreement;
 use App\Models\CommercialAgreementEvidence;
+use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -52,7 +56,11 @@ class CommercialAgreementTruthTest extends TestCase
         $truth =
             app(
                 CommercialAgreementTruthService::class
-            )->summary();
+            )->summary(
+                CarbonImmutable::parse(
+                    '2026-09-03'
+                )
+            );
 
         $this->assertSame(
             0,
@@ -72,7 +80,7 @@ class CommercialAgreementTruthTest extends TestCase
         $this->assertSame(
             0.0,
             $truth[
-                'recurring_monthly_equivalent'
+                'confirmed_recurring_monthly_equivalent'
             ]
         );
 
@@ -100,76 +108,53 @@ class CommercialAgreementTruthTest extends TestCase
         );
     }
 
-    public function test_summary_counts_only_confirmed_persisted_agreements_as_contracted_value(): void
+    public function test_confirmed_assertion_provides_known_subtotal_without_inventing_complete_total(): void
     {
-        $confirmedClient =
+        $client =
             Client::factory()->create();
 
-        CommercialAgreement::create([
-            'client_id' => $confirmedClient->id,
+        $service =
+            ClientService::create([
+                'client_id' => $client->id,
 
-            'service_type' => 'hosting',
+                'name' => 'Website Hosting',
 
-            'service_key' => hash(
-                'sha256',
-                'confirmed-hosting'
+                'type' => 'service',
+
+                'status' => 'active',
+            ]);
+
+        $reviewer =
+            User::factory()->create();
+
+        app(
+            CommercialAgreementAssertionService::class
+        )->confirm(
+            clientServiceId: $service->id,
+
+            cadence: 'monthly',
+
+            contractedAmountPence: 7500,
+
+            effectiveFrom: CarbonImmutable::parse(
+                '2026-01-01'
             ),
 
-            'cadence' => 'monthly',
+            reviewedBy: $reviewer->id,
 
-            'status' => 'confirmed',
+            source: 'owner',
 
-            'observed_value' => 75,
-
-            'monthly_equivalent' => 75,
-
-            'confidence' => 100,
-
-            'source' => 'owner',
-
-            'reason' => 'Human-confirmed contracted hosting value.',
-        ]);
-
-        $candidateClient =
-            Client::factory()->create();
-
-        CommercialAgreement::create([
-            'client_id' => $candidateClient->id,
-
-            'service_type' => 'retainer',
-
-            'service_key' => hash(
-                'sha256',
-                'candidate-retainer'
-            ),
-
-            'cadence' => 'monthly',
-
-            'status' => 'candidate',
-
-            'observed_value' => 500,
-
-            'monthly_equivalent' => 500,
-
-            'confidence' => 90,
-
-            'source' => 'invoice_history',
-
-            'reason' => 'Inference only.',
-        ]);
-
-        $before =
-            CommercialAgreement::count();
+            reason: 'Human-confirmed hosting terms.'
+        );
 
         $truth =
             app(
                 CommercialAgreementTruthService::class
-            )->summary();
-
-        $this->assertSame(
-            2,
-            $truth['agreement_count']
-        );
+            )->summary(
+                CarbonImmutable::parse(
+                    '2026-09-03'
+                )
+            );
 
         $this->assertSame(
             1,
@@ -177,31 +162,20 @@ class CommercialAgreementTruthTest extends TestCase
         );
 
         $this->assertSame(
-            1,
-            $truth['candidate_count']
-        );
-
-        $this->assertSame(
-            1,
-            $truth['monthly_count']
-        );
-
-        $this->assertSame(
             75.0,
             $truth[
-                'recurring_monthly_equivalent'
+                'confirmed_recurring_monthly_equivalent'
             ]
         );
 
-        $this->assertSame(
-            75.0,
+        $this->assertNull(
             $truth[
                 'contracted_monthly_value'
             ]
         );
 
         $this->assertSame(
-            'partially_reconciled',
+            'partially_established',
             $truth[
                 'contracted_value_status'
             ]
@@ -210,18 +184,128 @@ class CommercialAgreementTruthTest extends TestCase
         /*
          * Repeated reads remain pure.
          */
+        $before =
+            CommercialAgreement::count();
+
         app(
             CommercialAgreementTruthService::class
-        )->summary();
+        )->summary(
+            CarbonImmutable::parse(
+                '2026-09-03'
+            )
+        );
 
         $this->assertSame(
             $before,
             CommercialAgreement::count()
         );
+    }
+
+    public function test_future_supersession_does_not_hide_current_terms_before_effective_date(): void
+    {
+        $client =
+            Client::factory()->create();
+
+        $service =
+            ClientService::create([
+                'client_id' => $client->id,
+
+                'name' => 'Monthly Support',
+
+                'type' => 'service',
+
+                'status' => 'active',
+            ]);
+
+        $reviewer =
+            User::factory()->create();
+
+        $writer =
+            app(
+                CommercialAgreementAssertionService::class
+            );
+
+        $first =
+            $writer->confirm(
+                clientServiceId: $service->id,
+
+                cadence: 'monthly',
+
+                contractedAmountPence: 50000,
+
+                effectiveFrom: CarbonImmutable::parse(
+                    '2026-01-01'
+                ),
+
+                reviewedBy: $reviewer->id,
+
+                source: 'signed_agreement',
+
+                reason: 'Original monthly terms.'
+            );
+
+        $writer->supersede(
+            commercialAgreementId: $first->id,
+
+            cadence: 'monthly',
+
+            contractedAmountPence: 75000,
+
+            effectiveFrom: CarbonImmutable::parse(
+                '2026-10-01'
+            ),
+
+            reviewedBy: $reviewer->id,
+
+            source: 'email',
+
+            reason: 'Future price change agreed.'
+        );
+
+        $september =
+            app(
+                CommercialAgreementTruthService::class
+            )->summary(
+                CarbonImmutable::parse(
+                    '2026-09-03'
+                )
+            );
+
+        $this->assertSame(
+            500.0,
+            $september[
+                'confirmed_recurring_monthly_equivalent'
+            ]
+        );
+
+        $this->assertSame(
+            1,
+            $september[
+                'future_assertion_count'
+            ]
+        );
+
+        $october =
+            app(
+                CommercialAgreementTruthService::class
+            )->summary(
+                CarbonImmutable::parse(
+                    '2026-10-02'
+                )
+            );
+
+        $this->assertSame(
+            750.0,
+            $october[
+                'confirmed_recurring_monthly_equivalent'
+            ]
+        );
 
         $this->assertSame(
             0,
-            CommercialAgreementEvidence::count()
+            $october[
+                'future_assertion_count'
+            ]
         );
     }
 }

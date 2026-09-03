@@ -3,9 +3,12 @@
 namespace Tests\Feature;
 
 use App\Domains\CommercialTruth\Graph\CommercialTruthGraphProvider;
+use App\Domains\CommercialTruth\Services\CommercialAgreementAssertionService;
 use App\Domains\TruthGraph\Contracts\TruthGraphProvider;
 use App\Models\Client;
-use App\Models\CommercialAgreement;
+use App\Models\ClientService;
+use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -13,35 +16,52 @@ class TruthGraphProviderTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_commercial_truth_contributes_to_client_graph(): void
+    public function test_commercial_truth_contributes_canonical_contract_assertion_to_client_graph(): void
     {
         $client =
             Client::factory()->create();
 
-        $agreement =
-            CommercialAgreement::create([
+        $service =
+            ClientService::create([
                 'client_id' => $client->id,
 
-                'service_type' => 'hosting',
+                'name' => 'Website Hosting',
 
-                'service_key' => 'hosting',
+                'type' => 'service',
 
-                'cadence' => 'monthly',
-
-                'status' => 'confirmed',
-
-                'observed_value' => 75,
-
-                'monthly_equivalent' => 75,
-
-                'confidence' => 100,
-
-                'source' => 'test',
+                'status' => 'active',
             ]);
 
-        $provider = app(
-            CommercialTruthGraphProvider::class
-        );
+        $reviewer =
+            User::factory()->create([
+                'name' => 'Commercial Reviewer',
+            ]);
+
+        $agreement =
+            app(
+                CommercialAgreementAssertionService::class
+            )->confirm(
+                clientServiceId: $service->id,
+
+                cadence: 'monthly',
+
+                contractedAmountPence: 7500,
+
+                effectiveFrom: CarbonImmutable::parse(
+                    '2026-01-01'
+                ),
+
+                reviewedBy: $reviewer->id,
+
+                source: 'test',
+
+                reason: 'Truth graph test contract.'
+            );
+
+        $provider =
+            app(
+                CommercialTruthGraphProvider::class
+            );
 
         $this->assertInstanceOf(
             TruthGraphProvider::class,
@@ -69,13 +89,53 @@ class TruthGraphProviderTest extends TestCase
             $contribution->edges
         );
 
+        $node =
+            $contribution
+                ->nodes
+                ->first();
+
         $this->assertSame(
             'commercial_agreement:'
             .$agreement->id,
-            $contribution
-                ->nodes
-                ->first()
-                ->key()
+            $node->key()
+        );
+
+        $this->assertSame(
+            'Website Hosting agreement',
+            $node->label
+        );
+
+        $this->assertSame(
+            $service->id,
+            $node->attributes[
+                'client_service_id'
+            ]
+        );
+
+        $this->assertSame(
+            'Website Hosting',
+            $node->attributes[
+                'client_service_name'
+            ]
+        );
+
+        $this->assertSame(
+            7500,
+            $node->attributes[
+                'contracted_amount_pence'
+            ]
+        );
+
+        $this->assertSame(
+            75.0,
+            $node->attributes[
+                'monthly_equivalent'
+            ]
+        );
+
+        $this->assertSame(
+            100,
+            $node->confidence
         );
 
         $this->assertSame(
@@ -89,9 +149,10 @@ class TruthGraphProviderTest extends TestCase
 
     public function test_provider_ignores_unsupported_root_type(): void
     {
-        $provider = app(
-            CommercialTruthGraphProvider::class
-        );
+        $provider =
+            app(
+                CommercialTruthGraphProvider::class
+            );
 
         $this->assertFalse(
             $provider->supports(
