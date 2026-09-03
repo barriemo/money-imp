@@ -4,13 +4,16 @@ namespace App\Domains\BusinessBrain\Investigation\EvidenceBus;
 
 use App\Domains\BusinessBrain\Investigation\Reassessment\EvidenceTrigger;
 use App\Domains\BusinessBrain\Investigation\Reassessment\InvestigationReassessmentCoordinator;
+use App\Domains\BusinessBrain\Signals\CeoSignalEvidenceReassessmentService;
 use App\Models\InvestigationCase;
 use Illuminate\Support\Collection;
 
 class InvestigationEvidenceBus
 {
     public function __construct(
-        private InvestigationReassessmentCoordinator $reassessment
+        private InvestigationReassessmentCoordinator $reassessment,
+
+        private CeoSignalEvidenceReassessmentService $ceoSignals
     ) {}
 
     /**
@@ -35,6 +38,19 @@ class InvestigationEvidenceBus
     private function financialEvidenceChanged(
         EvidenceChange $change
     ): Collection {
+        /*
+         * CEO-origin questions use their own evidence-safe
+         * reassessment path.
+         *
+         * Run it before the older hypothesis reassessment path
+         * so new evidence can evolve the CEO answer while its
+         * human claim remains unverified.
+         */
+        $this->ceoSignals
+            ->reassess(
+                $change
+            );
+
         $trigger =
             new EvidenceTrigger(
                 domain: $change->domain,
