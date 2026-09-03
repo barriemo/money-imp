@@ -21,11 +21,53 @@ class CeoSignalController extends Controller
                 ],
             ]);
 
-        $signals->capture(
-            submittedBy: $request->user(),
+        $entry =
+            $signals->capture(
+                submittedBy: $request->user(),
 
-            rawInput: $validated['signal']
-        );
+                rawInput: $validated['signal']
+            );
+
+        $routing =
+            $entry->metadata[
+                'routing'
+            ] ?? [];
+
+        $message =
+            'Captured. Money Imp has opened an investigation. Your input remains unverified until the evidence supports a conclusion.';
+
+        if (
+            (
+                $routing[
+                    'status'
+                ] ?? null
+            ) === 'routed'
+            && (
+                $routing[
+                    'domain'
+                ] ?? null
+            ) === 'client_ledger'
+        ) {
+            $message =
+                sprintf(
+                    'Captured. Money Imp matched this to %s and linked it to a client-ledger investigation. Accounting currently reports £%s outstanding; canonical customer cash currently attributed is £%s. That does not prove no payment exists — the evidence still needs reconciliation.',
+                    $routing[
+                        'subject_name'
+                    ],
+                    number_format(
+                        (float) $routing[
+                            'accounting_outstanding'
+                        ],
+                        2
+                    ),
+                    number_format(
+                        (float) $routing[
+                            'canonical_cash'
+                        ],
+                        2
+                    )
+                );
+        }
 
         return redirect()
             ->route(
@@ -33,7 +75,7 @@ class CeoSignalController extends Controller
             )
             ->with(
                 'ceo_signal_success',
-                'Captured. Money Imp has opened an investigation. Your input remains unverified until the evidence supports a conclusion.'
+                $message
             );
     }
 }

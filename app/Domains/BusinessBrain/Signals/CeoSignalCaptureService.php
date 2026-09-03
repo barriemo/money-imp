@@ -22,6 +22,8 @@ final class CeoSignalCaptureService
         private readonly AddBusinessMemoryEntry $entries,
         private readonly BusinessMemoryExtractionService $extraction,
         private readonly InvestigationCaseService $investigations,
+
+        private readonly CeoSignalRoutingService $routing,
     ) {}
 
     public function capture(
@@ -129,38 +131,53 @@ final class CeoSignalCaptureService
                  * machinery must gather/assess evidence before a
                  * conclusion can be verified.
                  */
-                $this->investigations
-                    ->open(
-                        type: 'human_signal',
+                $humanSignalCase =
+                    $this->investigations
+                        ->open(
+                            type: 'human_signal',
 
-                        title: 'CEO signal: '
-                            .Str::limit(
-                                $content,
-                                120,
-                                ''
-                            ),
+                            title: 'CEO signal: '
+                                .Str::limit(
+                                    $content,
+                                    120,
+                                    ''
+                                ),
 
-                        question: $content,
+                            question: $content,
 
-                        subjectType: 'business_memory_entry',
+                            subjectType: 'business_memory_entry',
 
-                        subjectId: $entry->id,
+                            subjectId: $entry->id,
 
-                        subjectName: 'CEO Signal',
+                            subjectName: 'CEO Signal',
 
-                        metadata: [
-                            'business_memory_id' => $memory->id,
+                            metadata: [
+                                'business_memory_id' => $memory->id,
 
-                            'business_memory_entry_id' => $entry->id,
+                                'business_memory_entry_id' => $entry->id,
 
-                            'source' => 'ceo_signal_box',
+                                'source' => 'ceo_signal_box',
 
-                            'submitted_by_user_id' => $submittedBy->id,
+                                'submitted_by_user_id' => $submittedBy->id,
 
-                            'truth_status' => 'unverified',
+                                'truth_status' => 'unverified',
 
-                            'requires_evidence' => true,
-                        ]
+                                'requires_evidence' => true,
+                            ]
+                        );
+
+                /*
+                 * Resolve the signal into existing Brain domains.
+                 *
+                 * Routing may link/open an investigation and capture
+                 * an evidence snapshot, but it does not verify the
+                 * human claim or create an executive action.
+                 */
+                $this->routing
+                    ->route(
+                        entry: $entry,
+
+                        humanSignalCase: $humanSignalCase
                     );
 
                 return $entry
