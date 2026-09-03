@@ -80,6 +80,15 @@ class InvestigationCandidateQueueService
         InvestigationCandidate $candidate
     ): InvestigationCandidateBucket {
         if (
+            $candidate->classification
+                === 'invoice_balance_without_canonical_payment_evidence'
+            && $candidate->confidence >= 80
+            && $candidate->priority >= 50
+        ) {
+            return InvestigationCandidateBucket::ReadyNow;
+        }
+
+        if (
             in_array(
                 $candidate->classification,
                 [
@@ -95,8 +104,15 @@ class InvestigationCandidateQueueService
         }
 
         if (
-            $candidate->classification
-                === 'historical_evidence_incomplete'
+            in_array(
+                $candidate->classification,
+                [
+                    'historical_evidence_incomplete',
+                    'accounting_paid_without_canonical_payment_evidence',
+                    'invoice_evidence_without_canonical_payment_evidence',
+                ],
+                true
+            )
         ) {
             return InvestigationCandidateBucket::WaitingForEvidence;
         }

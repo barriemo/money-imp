@@ -102,4 +102,86 @@ class ClientLedgerAnalysisServiceTest extends TestCase
             $position->openingHistoryIncomplete
         );
     }
+
+    public function test_invoice_only_client_is_present_in_ledger_universe(): void
+    {
+        $client =
+            Client::factory()->create([
+                'name' => 'Invoice Only Client',
+            ]);
+
+        foreach (
+            [
+                ['INV-001', 500],
+                ['INV-002', 300],
+            ] as [$number, $amount]
+        ) {
+            AccountingInvoice::create([
+                'client_id' => $client->id,
+                'invoice_number' => $number,
+                'invoice_date' => '2026-07-01',
+                'due_date' => '2026-07-08',
+                'status' => 'overdue',
+                'gross_amount' => $amount,
+                'paid_amount' => 0,
+                'outstanding_amount' => $amount,
+            ]);
+        }
+
+        $position =
+            app(
+                ClientLedgerAnalysisService::class
+            )
+                ->current()
+                ->firstWhere(
+                    'clientId',
+                    $client->id
+                );
+
+        $this->assertNotNull(
+            $position
+        );
+
+        $this->assertNull(
+            $position->firstPaymentAt
+        );
+
+        $this->assertNull(
+            $position->lastPaymentAt
+        );
+
+        $this->assertSame(
+            0,
+            $position->paymentCount
+        );
+
+        $this->assertSame(
+            0.0,
+            $position->cashReceived
+        );
+
+        $this->assertSame(
+            2,
+            $position->invoiceCount
+        );
+
+        $this->assertSame(
+            800.0,
+            $position->invoicedDuringPaymentWindow
+        );
+
+        $this->assertSame(
+            800.0,
+            $position->accountingReportedOutstanding
+        );
+
+        $this->assertSame(
+            -800.0,
+            $position->ledgerDifference
+        );
+
+        $this->assertFalse(
+            $position->openingHistoryIncomplete
+        );
+    }
 }

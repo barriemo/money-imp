@@ -75,6 +75,36 @@ class ClientLedgerRiskService
     private function classification(
         ClientLedgerPosition $position
     ): string {
+        /*
+         * Explicitly distinguish invoice-only truth.
+         *
+         * Accounting-reported outstanding is evidence.
+         * Absence of canonical payment evidence is also evidence.
+         *
+         * But absence of recognised payment does NOT prove that no
+         * payment occurred somewhere in incomplete/unmapped evidence.
+         */
+        if (
+            $position->paymentCount === 0
+            && $position->accountingReportedOutstanding > 0
+        ) {
+            return 'invoice_balance_without_canonical_payment_evidence';
+        }
+
+        if (
+            $position->paymentCount === 0
+            && $position->accountingReportedPaid > 0
+        ) {
+            return 'accounting_paid_without_canonical_payment_evidence';
+        }
+
+        if (
+            $position->paymentCount === 0
+            && $position->invoiceCount > 0
+        ) {
+            return 'invoice_evidence_without_canonical_payment_evidence';
+        }
+
         if (
             $position->invoiceCount === 0
             && $position->cashReceived > 0
@@ -128,8 +158,9 @@ class ClientLedgerRiskService
             min(
                 60,
                 (int) round(
-                    abs(
-                        $position->ledgerDifference
+                    $this->priorityValue(
+                        $position,
+                        $classification
                     ) / 500
                 )
             );
@@ -138,12 +169,18 @@ class ClientLedgerRiskService
             match ($classification) {
                 'high_confidence_anomaly' => 40,
 
+                'invoice_balance_without_canonical_payment_evidence' => 40,
+
                 'cash_without_invoice_evidence' => 35,
 
                 'accounting_ahead_of_bank',
                 'bank_ahead_of_accounting' => 30,
 
+                'accounting_paid_without_canonical_payment_evidence' => 20,
+
                 'historical_evidence_incomplete' => 10,
+
+                'invoice_evidence_without_canonical_payment_evidence' => 10,
 
                 default => 0,
             };
@@ -155,6 +192,25 @@ class ClientLedgerRiskService
         );
     }
 
+    private function priorityValue(
+        ClientLedgerPosition $position,
+        string $classification
+    ): float {
+        return match ($classification) {
+            'invoice_balance_without_canonical_payment_evidence' => abs(
+                $position->accountingReportedOutstanding
+            ),
+
+            'accounting_paid_without_canonical_payment_evidence' => abs(
+                $position->accountingReportedPaid
+            ),
+
+            default => abs(
+                $position->ledgerDifference
+            ),
+        };
+    }
+
     private function confidence(
         ClientLedgerPosition $position,
         string $classification
@@ -164,9 +220,15 @@ class ClientLedgerRiskService
 
             'high_confidence_anomaly' => 90,
 
+            'invoice_balance_without_canonical_payment_evidence' => 80,
+
             'cash_without_invoice_evidence' => $position->openingHistoryIncomplete
                     ? 60
                     : 90,
+
+            'accounting_paid_without_canonical_payment_evidence' => 65,
+
+            'invoice_evidence_without_canonical_payment_evidence' => 50,
 
             'historical_evidence_incomplete' => 45,
 
@@ -205,6 +267,41 @@ class ClientLedgerRiskService
         ];
 
         if (
+            $classification
+            === 'invoice_balance_without_canonical_payment_evidence'
+        ) {
+            $reasons[] =
+                sprintf(
+                    'Accounting reports %s outstanding.',
+                    $this->money(
+                        $position->accountingReportedOutstanding
+                    )
+                );
+
+            $reasons[] =
+                'No canonical customer receipt is currently attributed to this client.';
+
+            $reasons[] =
+                'Absence of attributed canonical cash does not prove that no payment exists in unmapped or incomplete evidence.';
+
+            $reasons[] =
+                'Executive priority is based on the accounting-reported outstanding balance, not historic gross invoice value.';
+        }
+
+        if (
+            $classification
+            === 'accounting_paid_without_canonical_payment_evidence'
+        ) {
+            $reasons[] =
+                sprintf(
+                    'Accounting reports %s paid, but no canonical bank receipt is currently attributed to this client.',
+                    $this->money(
+                        $position->accountingReportedPaid
+                    )
+                );
+        }
+
+        if (
             $position->openingHistoryIncomplete
         ) {
             $reasons[] =
@@ -230,6 +327,22 @@ class ClientLedgerRiskService
                 'Review the client invoice ledger.',
                 'Inspect canonical bank receipts.',
                 'Check client mapping, credits and journals.',
+            ],
+
+            'invoice_balance_without_canonical_payment_evidence' => [
+                'Search unmatched and unmapped positive bank transactions for plausible receipts.',
+                'Review payment identities and client mapping.',
+                'Reconcile any supported receipts before treating the full accounting balance as verified debtor truth.',
+            ],
+
+            'accounting_paid_without_canonical_payment_evidence' => [
+                'Find the bank evidence supporting the accounting-paid position.',
+                'Review payment identities, mapping and migrated accounting history.',
+            ],
+
+            'invoice_evidence_without_canonical_payment_evidence' => [
+                'Review whether the invoice evidence represents a live recoverable balance.',
+                'Check bank and accounting evidence before concluding.',
             ],
 
             'cash_without_invoice_evidence' => [
@@ -258,7 +371,9 @@ class ClientLedgerRiskService
         float $value
     ): string {
         return '£'.number_format(
-            abs($value),
+            abs(
+                $value
+            ),
             2
         );
     }

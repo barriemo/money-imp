@@ -134,6 +134,69 @@ class InvestigationCandidateQueueServiceTest extends TestCase
         );
     }
 
+    public function test_invoice_balance_without_canonical_payment_is_ready_now(): void
+    {
+        $service =
+            app(
+                InvestigationCandidateQueueService::class
+            );
+
+        $this->assertSame(
+            InvestigationCandidateBucket::ReadyNow,
+            $service->bucket(
+                $this->candidate(
+                    id: 'vf',
+                    name: 'VF Electrical Services Ltd',
+                    classification: 'invoice_balance_without_canonical_payment_evidence',
+                    priority: 54,
+                    confidence: 80
+                )
+            )
+        );
+    }
+
+    public function test_small_invoice_only_balance_is_not_promoted_to_ready_now(): void
+    {
+        $service =
+            app(
+                InvestigationCandidateQueueService::class
+            );
+
+        $this->assertSame(
+            InvestigationCandidateBucket::LowerPriority,
+            $service->bucket(
+                $this->candidate(
+                    id: 'small-debtor',
+                    name: 'Small Debtor Ltd',
+                    classification: 'invoice_balance_without_canonical_payment_evidence',
+                    priority: 49,
+                    confidence: 80
+                )
+            )
+        );
+    }
+
+    public function test_accounting_paid_without_canonical_payment_waits_for_evidence(): void
+    {
+        $service =
+            app(
+                InvestigationCandidateQueueService::class
+            );
+
+        $this->assertSame(
+            InvestigationCandidateBucket::WaitingForEvidence,
+            $service->bucket(
+                $this->candidate(
+                    id: 'paid',
+                    name: 'Accounting Paid Client',
+                    classification: 'accounting_paid_without_canonical_payment_evidence',
+                    priority: 25,
+                    confidence: 65
+                )
+            )
+        );
+    }
+
     private function candidate(
         string $id,
         string $name,

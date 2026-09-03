@@ -129,4 +129,202 @@ class ClientLedgerRiskServiceTest extends TestCase
             $completeRisk->confidence
         );
     }
+
+    public function test_invoice_only_outstanding_client_is_explicit_ledger_risk(): void
+    {
+        $client =
+            Client::factory()->create([
+                'name' => 'VF Electrical Services Ltd',
+            ]);
+
+        AccountingInvoice::create([
+            'client_id' => $client->id,
+            'invoice_number' => 'VF-001',
+            'invoice_date' => '2026-06-30',
+            'due_date' => '2026-07-07',
+            'status' => 'overdue',
+            'gross_amount' => 7218,
+            'paid_amount' => 0,
+            'outstanding_amount' => 7218,
+        ]);
+
+        $risk =
+            app(
+                ClientLedgerRiskService::class
+            )
+                ->current()
+                ->firstWhere(
+                    'clientId',
+                    $client->id
+                );
+
+        $this->assertNotNull(
+            $risk
+        );
+
+        $this->assertSame(
+            'invoice_balance_without_canonical_payment_evidence',
+            $risk->classification
+        );
+
+        $this->assertSame(
+            0.0,
+            $risk->cashReceived
+        );
+
+        $this->assertSame(
+            7218.0,
+            $risk->invoiceValue
+        );
+
+        $this->assertSame(
+            -7218.0,
+            $risk->difference
+        );
+
+        $this->assertSame(
+            80,
+            $risk->confidence
+        );
+
+        $this->assertTrue(
+            collect(
+                $risk->reasons
+            )->contains(
+                fn (string $reason) => str_contains(
+                    $reason,
+                    'does not prove'
+                )
+            )
+        );
+    }
+
+    public function test_invoice_only_priority_uses_live_outstanding_while_preserving_raw_ledger_evidence(): void
+    {
+        $client =
+            Client::factory()->create([
+                'name' => 'Part Paid Debtor',
+            ]);
+
+        AccountingInvoice::create([
+            'client_id' => $client->id,
+            'invoice_number' => 'PART-001',
+            'invoice_date' => '2026-06-30',
+            'due_date' => '2026-07-07',
+            'status' => 'overdue',
+            'gross_amount' => 15000,
+            'paid_amount' => 7800,
+            'outstanding_amount' => 7200,
+        ]);
+
+        $risk =
+            app(
+                ClientLedgerRiskService::class
+            )
+                ->current()
+                ->firstWhere(
+                    'clientId',
+                    $client->id
+                );
+
+        $this->assertNotNull(
+            $risk
+        );
+
+        $this->assertSame(
+            'invoice_balance_without_canonical_payment_evidence',
+            $risk->classification
+        );
+
+        /*
+         * Preserve the raw evidence facts.
+         */
+        $this->assertSame(
+            15000.0,
+            $risk->invoiceValue
+        );
+
+        $this->assertSame(
+            -15000.0,
+            $risk->difference
+        );
+
+        /*
+         * But executive priority is based on the live
+         * accounting-reported outstanding balance:
+         *
+         * £7,200 / £500 = 14 value points
+         * + 40 evidence points
+         * = priority 54.
+         */
+        $this->assertSame(
+            54,
+            $risk->priority
+        );
+
+        $this->assertTrue(
+            collect(
+                $risk->reasons
+            )->contains(
+                fn (string $reason) => str_contains(
+                    $reason,
+                    '£7,200.00 outstanding'
+                )
+            )
+        );
+
+        $this->assertTrue(
+            collect(
+                $risk->reasons
+            )->contains(
+                fn (string $reason) => str_contains(
+                    $reason,
+                    'Executive priority is based'
+                )
+            )
+        );
+    }
+
+    public function test_accounting_paid_without_bank_evidence_is_not_called_reconciled(): void
+    {
+        $client =
+            Client::factory()->create([
+                'name' => 'Accounting Paid Client',
+            ]);
+
+        AccountingInvoice::create([
+            'client_id' => $client->id,
+            'invoice_number' => 'PAID-001',
+            'invoice_date' => '2026-06-30',
+            'due_date' => '2026-07-07',
+            'status' => 'paid',
+            'gross_amount' => 1200,
+            'paid_amount' => 1200,
+            'outstanding_amount' => 0,
+        ]);
+
+        $risk =
+            app(
+                ClientLedgerRiskService::class
+            )
+                ->current()
+                ->firstWhere(
+                    'clientId',
+                    $client->id
+                );
+
+        $this->assertNotNull(
+            $risk
+        );
+
+        $this->assertSame(
+            'accounting_paid_without_canonical_payment_evidence',
+            $risk->classification
+        );
+
+        $this->assertSame(
+            65,
+            $risk->confidence
+        );
+    }
 }
