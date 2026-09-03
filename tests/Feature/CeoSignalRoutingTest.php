@@ -244,6 +244,35 @@ class CeoSignalRoutingTest extends TestCase
             ]
         );
 
+        $paymentSearch =
+            $ledgerCase->events()
+                ->where(
+                    'type',
+                    'payment_evidence_search'
+                )
+                ->sole();
+
+        $this->assertSame(
+            'bank_evidence_missing',
+            $paymentSearch->payload[
+                'state'
+            ]
+        );
+
+        $this->assertSame(
+            0,
+            $paymentSearch->payload[
+                'supported_candidate_count'
+            ]
+        );
+
+        $this->assertStringContainsString(
+            'cannot prove that no payment occurred',
+            $paymentSearch->payload[
+                'truth_boundary'
+            ]
+        );
+
         /*
          * Routing and evidence capture are not truth/action writes.
          */
@@ -473,6 +502,16 @@ class CeoSignalRoutingTest extends TestCase
                 ->count()
         );
 
+        $this->assertSame(
+            1,
+            $ledgerCase->events()
+                ->where(
+                    'type',
+                    'payment_evidence_search'
+                )
+                ->count()
+        );
+
         $secondRouting =
             app(
                 CeoSignalRoutingService::class
@@ -533,6 +572,16 @@ class CeoSignalRoutingTest extends TestCase
                 ->where(
                     'type',
                     'evidence_snapshot'
+                )
+                ->count()
+        );
+
+        $this->assertSame(
+            1,
+            $ledgerCase->events()
+                ->where(
+                    'type',
+                    'payment_evidence_search'
                 )
                 ->count()
         );

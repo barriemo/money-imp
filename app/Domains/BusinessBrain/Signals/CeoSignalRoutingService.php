@@ -3,6 +3,7 @@
 namespace App\Domains\BusinessBrain\Signals;
 
 use App\Domains\BusinessBrain\Investigation\Cases\InvestigationCaseService;
+use App\Domains\BusinessBrain\PaymentTruth\Investigation\ClientPaymentEvidenceSearchService;
 use App\Domains\BusinessBrain\PaymentTruth\Ledger\ClientLedgerAnalysisService;
 use App\Domains\BusinessBrain\PaymentTruth\LedgerIntelligence\ClientLedgerRiskService;
 use App\Models\BusinessMemoryEntry;
@@ -18,6 +19,8 @@ final class CeoSignalRoutingService
         private readonly ClientLedgerAnalysisService $ledger,
 
         private readonly ClientLedgerRiskService $risks,
+
+        private readonly ClientPaymentEvidenceSearchService $paymentEvidence,
 
         private readonly InvestigationCaseService $cases,
     ) {}
@@ -56,6 +59,50 @@ final class CeoSignalRoutingService
                 ] ?? null
             ) !== null
         ) {
+            /*
+             * Stage 3G-D enrichment:
+             *
+             * Historical routed signals may pre-date the reusable
+             * payment-evidence search. Reprocessing may append the
+             * missing evidence-search event once, while preserving
+             * the original routing and all truth boundaries.
+             */
+            $ledgerCase =
+                InvestigationCase::query()
+                    ->find(
+                        $existingRouting[
+                            'linked_investigation_case_id'
+                        ]
+                    );
+
+            if (
+                $ledgerCase
+                && $ledgerCase->status !== 'closed'
+                && (
+                    $existingRouting[
+                        'subject_id'
+                    ] ?? null
+                ) !== null
+            ) {
+                $this->capturePaymentEvidenceSearch(
+                    entry: $entry,
+
+                    humanSignalCase: $humanSignalCase,
+
+                    ledgerCase: $ledgerCase,
+
+                    clientId: (string) $existingRouting[
+                        'subject_id'
+                    ],
+
+                    clientName: (string) (
+                        $existingRouting[
+                            'subject_name'
+                        ] ?? 'Client'
+                    )
+                );
+            }
+
             return $existingRouting;
         }
 
@@ -345,6 +392,18 @@ final class CeoSignalRoutingService
                 ]
             );
 
+        $this->capturePaymentEvidenceSearch(
+            entry: $entry,
+
+            humanSignalCase: $humanSignalCase,
+
+            ledgerCase: $ledgerCase,
+
+            clientId: $client->id,
+
+            clientName: $client->name
+        );
+
         return $this->storeRouting(
             entry: $entry,
 
@@ -352,6 +411,60 @@ final class CeoSignalRoutingService
 
             routing: $routing
         );
+    }
+
+    private function capturePaymentEvidenceSearch(
+        BusinessMemoryEntry $entry,
+        InvestigationCase $humanSignalCase,
+        InvestigationCase $ledgerCase,
+        string $clientId,
+        string $clientName
+    ): void {
+        $alreadyCaptured =
+            $ledgerCase
+                ->events()
+                ->where(
+                    'type',
+                    'payment_evidence_search'
+                )
+                ->where(
+                    'payload->business_memory_entry_id',
+                    $entry->id
+                )
+                ->exists();
+
+        if ($alreadyCaptured) {
+            return;
+        }
+
+        $result =
+            $this->paymentEvidence
+                ->search(
+                    $clientId
+                );
+
+        $this->cases
+            ->event(
+                case: $ledgerCase,
+
+                type: 'payment_evidence_search',
+
+                description: sprintf(
+                    'Payment evidence search completed for %s. No payment allocation, client remap or verdict was created.',
+                    $clientName
+                ),
+
+                payload: array_merge(
+                    [
+                        'business_memory_entry_id' => $entry->id,
+
+                        'human_signal_case_id' => $humanSignalCase->id,
+
+                        'source' => 'client_payment_evidence_search',
+                    ],
+                    $result->toArray()
+                )
+            );
     }
 
     private function storeRouting(
