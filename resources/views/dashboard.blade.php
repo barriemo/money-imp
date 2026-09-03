@@ -128,6 +128,39 @@
             line-height: 1.4;
         }
 
+        .signal-finding {
+            margin-bottom: 16px;
+            padding: 16px;
+            background: #171b20;
+            border: 1px solid #39424d;
+            border-radius: 10px;
+        }
+
+        .signal-finding strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 18px;
+        }
+
+        .signal-finding p {
+            margin: 0 0 10px;
+            color: #d3d7dc;
+            line-height: 1.5;
+        }
+
+        .signal-finding-next {
+            margin-top: 12px;
+            color: #f2f2f2;
+            line-height: 1.45;
+        }
+
+        .signal-finding-boundary {
+            margin-top: 10px;
+            color: #888;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
         .signal-error {
             margin-top: 8px;
             color: #e88c8c;
@@ -292,7 +325,34 @@
             or questioning.
         </p>
 
-        @if (session('ceo_signal_success'))
+        @if (session('ceo_signal_finding'))
+            @php
+                $finding =
+                    session(
+                        'ceo_signal_finding'
+                    );
+            @endphp
+
+            <div class="signal-finding">
+                <strong>
+                    {{ $finding['headline'] }}
+                </strong>
+
+                <p>
+                    {{ $finding['summary'] }}
+                </p>
+
+                <div class="signal-finding-next">
+                    <b>Next:</b>
+                    {{ $finding['next_step'] }}
+                </div>
+
+                <div class="signal-finding-boundary">
+                    <b>Truth boundary:</b>
+                    {{ $finding['truth_boundary'] }}
+                </div>
+            </div>
+        @elseif (session('ceo_signal_success'))
             <div class="signal-success">
                 {{ session('ceo_signal_success') }}
             </div>

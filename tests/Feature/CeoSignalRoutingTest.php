@@ -340,19 +340,56 @@ class CeoSignalRoutingTest extends TestCase
                 )
             )
             ->assertSessionHas(
-                'ceo_signal_success',
-                fn (string $message) => str_contains(
-                    $message,
-                    'VF Electrical Services Ltd'
-                )
-                    && str_contains(
-                        $message,
-                        '£7,218.00'
-                    )
-                    && str_contains(
-                        $message,
-                        'does not prove no payment exists'
-                    )
+                'ceo_signal_finding',
+                function (array $finding): bool {
+                    return (
+                        $finding[
+                            'subject_name'
+                        ] ?? null
+                    ) === 'VF Electrical Services Ltd'
+                        && (
+                            $finding[
+                                'state'
+                            ] ?? null
+                        ) === 'evidence_missing'
+                        && (
+                            $finding[
+                                'search_state'
+                            ] ?? null
+                        ) === 'bank_evidence_missing'
+                        && (
+                            (float) (
+                                $finding[
+                                    'accounting_outstanding'
+                                ]
+                                ?? 0
+                            )
+                        ) === 7218.0
+                        && str_contains(
+                            $finding[
+                                'summary'
+                            ] ?? '',
+                            '£7,218.00'
+                        )
+                        && str_contains(
+                            $finding[
+                                'summary'
+                            ] ?? '',
+                            'does not currently have bank transaction evidence'
+                        )
+                        && str_contains(
+                            $finding[
+                                'summary'
+                            ] ?? '',
+                            'cannot be treated as proof that payment was not received'
+                        )
+                        && str_contains(
+                            $finding[
+                                'truth_boundary'
+                            ] ?? '',
+                            'No conclusion about payment presence or absence'
+                        );
+                }
             );
     }
 

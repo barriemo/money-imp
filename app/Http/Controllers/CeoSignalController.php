@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Domains\BusinessBrain\Signals\CeoSignalCaptureService;
+use App\Domains\BusinessBrain\Signals\CeoSignalFindingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -10,7 +11,8 @@ class CeoSignalController extends Controller
 {
     public function store(
         Request $request,
-        CeoSignalCaptureService $signals
+        CeoSignalCaptureService $signals,
+        CeoSignalFindingService $findings
     ): RedirectResponse {
         $validated =
             $request->validate([
@@ -28,44 +30,19 @@ class CeoSignalController extends Controller
                 rawInput: $validated['signal']
             );
 
-        $routing =
-            $entry->metadata[
-                'routing'
-            ] ?? [];
+        $finding =
+            $findings->forEntry(
+                $entry->fresh()
+            );
 
-        $message =
-            'Captured. Money Imp has opened an investigation. Your input remains unverified until the evidence supports a conclusion.';
-
-        if (
-            (
-                $routing[
-                    'status'
-                ] ?? null
-            ) === 'routed'
-            && (
-                $routing[
-                    'domain'
-                ] ?? null
-            ) === 'client_ledger'
-        ) {
-            $message =
-                sprintf(
-                    'Captured. Money Imp matched this to %s and linked it to a client-ledger investigation. Accounting currently reports £%s outstanding; canonical customer cash currently attributed is £%s. That does not prove no payment exists — the evidence still needs reconciliation.',
-                    $routing[
-                        'subject_name'
-                    ],
-                    number_format(
-                        (float) $routing[
-                            'accounting_outstanding'
-                        ],
-                        2
-                    ),
-                    number_format(
-                        (float) $routing[
-                            'canonical_cash'
-                        ],
-                        2
-                    )
+        if ($finding) {
+            return redirect()
+                ->route(
+                    'dashboard'
+                )
+                ->with(
+                    'ceo_signal_finding',
+                    $finding->toArray()
                 );
         }
 
@@ -75,7 +52,7 @@ class CeoSignalController extends Controller
             )
             ->with(
                 'ceo_signal_success',
-                $message
+                'Captured. Money Imp has opened an investigation. Your input remains unverified until the evidence supports a conclusion.'
             );
     }
 }
