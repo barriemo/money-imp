@@ -23,11 +23,40 @@ class BusinessTruthCoverageService
                 )
                 ->count();
 
+        /*
+         * Client-specific bank coverage requires an attributable
+         * client mapping.
+         *
+         * Suggested client attribution with no matched_by value is
+         * provisional. That includes both modern automated candidates
+         * and legacy suggestions from before explicit provenance
+         * tracking.
+         *
+         * Provisional attribution remains useful investigation
+         * evidence, but it must not make Business Brain believe that
+         * client-specific bank evidence has been established.
+         */
         $bankTransactionCount =
             BankTransaction::query()
                 ->where(
                     'client_id',
                     $client->id
+                )
+                ->where(
+                    function ($query): void {
+                        $query
+                            ->where(
+                                'match_status',
+                                '!=',
+                                'suggested'
+                            )
+                            ->orWhereNull(
+                                'match_status'
+                            )
+                            ->orWhereNotNull(
+                                'matched_by'
+                            );
+                    }
                 )
                 ->count();
 
