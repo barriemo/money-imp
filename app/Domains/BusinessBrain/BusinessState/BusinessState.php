@@ -16,6 +16,8 @@ class BusinessState
 
         public Collection $clients,
 
+        public BusinessStateGaps $gaps,
+
         public CarbonImmutable $asOf
     ) {}
 }

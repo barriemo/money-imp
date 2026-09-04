@@ -18,7 +18,9 @@ class BusinessStateService
 
         private DeliveryTruthService $delivery,
 
-        private BusinessTruthCoverageService $coverage
+        private BusinessTruthCoverageService $coverage,
+
+        private BusinessStateGapService $gaps
     ) {}
 
     public function current(): BusinessState
@@ -60,12 +62,22 @@ class BusinessStateService
                 )
                 ->values();
 
+        $gaps =
+            $this->gaps
+                ->assess(
+                    financial: $financial,
+
+                    clients: $clients
+                );
+
         return new BusinessState(
             financial: $financial,
 
             revenue: $revenue,
 
             clients: $clients,
+
+            gaps: $gaps,
 
             asOf: CarbonImmutable::now()
         );

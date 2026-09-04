@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Domains\BusinessBrain\BusinessState\BusinessStateGaps;
+use App\Domains\BusinessBrain\BusinessState\BusinessStateGapService;
 use App\Domains\BusinessBrain\BusinessState\BusinessStateService;
 use App\Domains\BusinessBrain\DeliveryTruth\DeliveryTruth;
 use App\Domains\BusinessBrain\DeliveryTruth\DeliveryTruthService;
@@ -161,6 +163,39 @@ class BusinessStateServiceTest extends TestCase
                 $coverage
             );
 
+        $gaps =
+            new BusinessStateGaps(
+                unknowns: collect(),
+
+                evidenceGaps: collect()
+            );
+
+        $gapService =
+            Mockery::mock(
+                BusinessStateGapService::class
+            );
+
+        $gapService
+            ->shouldReceive(
+                'assess'
+            )
+            ->once()
+            ->withArgs(
+                fn (
+                    FinancialPosition $position,
+                    $clients
+                ) => (
+                    $position === $financial
+                    && $clients->count() === 1
+                    && $clients
+                        ->first()
+                        ->clientId === (string) $active->id
+                )
+            )
+            ->andReturn(
+                $gaps
+            );
+
         $state =
             (
                 new BusinessStateService(
@@ -170,7 +205,9 @@ class BusinessStateServiceTest extends TestCase
 
                     delivery: $deliveryService,
 
-                    coverage: $coverageService
+                    coverage: $coverageService,
+
+                    gaps: $gapService
                 )
             )->current();
 
@@ -211,6 +248,11 @@ class BusinessStateServiceTest extends TestCase
         $this->assertSame(
             $coverage,
             $clientState->coverage
+        );
+
+        $this->assertSame(
+            $gaps,
+            $state->gaps
         );
 
         /*
