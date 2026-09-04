@@ -133,6 +133,22 @@ class BankSourceEvidenceCollector implements EvidenceCollector
                     $hypothesis->subjectId
                 )
                 ->where(
+                    function ($query): void {
+                        $query
+                            ->where(
+                                'match_status',
+                                '!=',
+                                'suggested'
+                            )
+                            ->orWhereNull(
+                                'match_status'
+                            )
+                            ->orWhereNotNull(
+                                'matched_by'
+                            );
+                    }
+                )
+                ->where(
                     'amount',
                     '>',
                     0

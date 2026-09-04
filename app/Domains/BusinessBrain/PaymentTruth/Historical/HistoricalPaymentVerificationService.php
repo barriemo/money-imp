@@ -32,6 +32,22 @@ class HistoricalPaymentVerificationService
             ->whereNotNull(
                 'client_id'
             )
+            ->where(
+                function ($query): void {
+                    $query
+                        ->where(
+                            'match_status',
+                            '!=',
+                            'suggested'
+                        )
+                        ->orWhereNull(
+                            'match_status'
+                        )
+                        ->orWhereNotNull(
+                            'matched_by'
+                        );
+                }
+            )
             ->chunkById(
                 200,
                 function ($transactions) use (&$stats): void {
