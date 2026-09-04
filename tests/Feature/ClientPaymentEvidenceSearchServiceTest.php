@@ -705,6 +705,190 @@ class ClientPaymentEvidenceSearchServiceTest extends TestCase
         );
     }
 
+    public function test_legacy_unattributed_suggested_client_mapping_remains_provisional_payment_evidence(): void
+    {
+        $client =
+            $this->clientWithInvoice(
+                name: 'Legacy Client Ltd',
+
+                invoiceNumber: 'LEGACY-SUGGESTED',
+
+                amount: 60
+            );
+
+        $account =
+            BankAccount::factory()->create();
+
+        $this->bank(
+            account: $account,
+
+            date: '2025-12-31',
+
+            amount: 1,
+
+            description: 'OPENING COVERAGE',
+
+            unexplained: 1
+        );
+
+        $candidate =
+            $this->bank(
+                account: $account,
+
+                date: '2026-01-02',
+
+                amount: 60,
+
+                description: 'LEGACY CLIENT LTD',
+
+                unexplained: 60
+            );
+
+        $candidate->update([
+            'client_id' => $client->id,
+
+            'transaction_type' => 'customer_payment',
+
+            'match_status' => 'suggested',
+
+            'match_confidence' => 100,
+
+            'matched_by' => null,
+
+            'matched_at' => null,
+        ]);
+
+        $result =
+            app(
+                ClientPaymentEvidenceSearchService::class
+            )->search(
+                $client->id
+            );
+
+        /*
+         * Strong payer-name evidence remains useful, but an
+         * unattributed legacy suggestion is not canonical cash.
+         */
+        $this->assertSame(
+            'supported_payment_candidate_found',
+            $result->state
+        );
+
+        $this->assertSame(
+            1,
+            $result->directAliasHitCount
+        );
+
+        $this->assertSame(
+            1,
+            count(
+                $result->supportedCandidates
+            )
+        );
+
+        $this->assertSame(
+            $candidate->id,
+            $result->supportedCandidates[
+                0
+            ][
+                'transaction_id'
+            ]
+        );
+
+        $this->assertSame(
+            1,
+            $result->exactAmountCoincidenceCount
+        );
+    }
+
+    public function test_human_suggested_client_mapping_is_canonical_not_hidden_payment_evidence(): void
+    {
+        $user =
+            User::factory()->create();
+
+        $client =
+            $this->clientWithInvoice(
+                name: 'Human Client Ltd',
+
+                invoiceNumber: 'HUMAN-SUGGESTED',
+
+                amount: 60
+            );
+
+        $account =
+            BankAccount::factory()->create();
+
+        $this->bank(
+            account: $account,
+
+            date: '2025-12-31',
+
+            amount: 1,
+
+            description: 'OPENING COVERAGE',
+
+            unexplained: 1
+        );
+
+        $transaction =
+            $this->bank(
+                account: $account,
+
+                date: '2026-01-02',
+
+                amount: 60,
+
+                description: 'HUMAN CLIENT LTD',
+
+                unexplained: 60
+            );
+
+        $transaction->update([
+            'client_id' => $client->id,
+
+            'transaction_type' => 'customer_payment',
+
+            'match_status' => 'suggested',
+
+            'match_confidence' => 100,
+
+            'matched_by' => $user->id,
+
+            'matched_at' => now(),
+        ]);
+
+        $result =
+            app(
+                ClientPaymentEvidenceSearchService::class
+            )->search(
+                $client->id
+            );
+
+        /*
+         * matched_by proves an attributable human client-level
+         * decision. Invoice allocation may remain unresolved.
+         */
+        $this->assertSame(
+            'no_supported_payment_candidate_found',
+            $result->state
+        );
+
+        $this->assertSame(
+            0,
+            $result->directAliasHitCount
+        );
+
+        $this->assertSame(
+            [],
+            $result->supportedCandidates
+        );
+
+        $this->assertSame(
+            0,
+            $result->exactAmountCoincidenceCount
+        );
+    }
+
     public function test_legacy_ignored_without_provenance_remains_open_payment_evidence(): void
     {
         $client =

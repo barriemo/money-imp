@@ -65,7 +65,7 @@ class CeoSignalAutomatedReconciliationEvidenceTest extends TestCase
         );
     }
 
-    public function test_legacy_suggested_client_payment_without_automated_provenance_remains_canonical(): void
+    public function test_legacy_suggested_client_payment_without_attribution_remains_provisional(): void
     {
         $client =
             Client::factory()->create([
@@ -98,14 +98,16 @@ class CeoSignalAutomatedReconciliationEvidenceTest extends TestCase
                 CanonicalPaymentEvidenceService::class
             )->customerPayments();
 
+        /*
+         * Strong client-name evidence does not prove that an old
+         * suggested client mapping was human-confirmed.
+         *
+         * Missing legacy provenance cannot silently promote an
+         * unattributed suggestion into canonical client cash.
+         */
         $this->assertCount(
-            1,
+            0,
             $payments
-        );
-
-        $this->assertSame(
-            $client->id,
-            $payments->sole()->clientId
         );
     }
 

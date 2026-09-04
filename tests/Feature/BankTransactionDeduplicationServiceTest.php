@@ -6,6 +6,7 @@ use App\Domains\BusinessBrain\BankTruth\BankTransactionDeduplicationService;
 use App\Models\BankAccount;
 use App\Models\BankTransaction;
 use App\Models\Client;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -207,6 +208,126 @@ class BankTransactionDeduplicationServiceTest extends TestCase
         );
     }
 
+    public function test_legacy_unattributed_suggested_client_mapping_is_not_canonical(): void
+    {
+        $client =
+            Client::factory()->create([
+                'name' => 'Legacy Client Ltd',
+            ]);
+
+        $account =
+            BankAccount::create([
+                'name' => 'Business Current Account',
+                'account_type' => 'StandardBankAccount',
+                'currency' => 'GBP',
+                'status' => 'active',
+            ]);
+
+        BankTransaction::create([
+            'bank_account_id' => $account->id,
+            'client_id' => $client->id,
+            'transaction_date' => '2026-01-16',
+            'amount' => 500,
+            'description' => 'LEGACY CLIENT LTD',
+            'transaction_type' => 'customer_payment',
+            'match_status' => 'suggested',
+            'match_confidence' => 100,
+            'matched_by' => null,
+            'matched_at' => null,
+            'source_type' => 'freeagent',
+            'transaction_hash' => hash(
+                'sha256',
+                'legacy-unattributed-suggestion'
+            ),
+            'metadata' => [
+                'freeagent_unexplained_amount' => 500,
+            ],
+        ]);
+
+        $truth =
+            app(
+                BankTransactionDeduplicationService::class
+            )->current();
+
+        /*
+         * Strong payer/client evidence can exist while the
+         * client attribution remains provisional.
+         */
+        $this->assertCount(
+            0,
+            $truth
+        );
+    }
+
+    public function test_human_suggested_client_mapping_remains_canonical(): void
+    {
+        $user =
+            User::factory()->create();
+
+        $client =
+            Client::factory()->create([
+                'name' => 'Human Confirmed Client Ltd',
+            ]);
+
+        $account =
+            BankAccount::create([
+                'name' => 'Business Current Account',
+                'account_type' => 'StandardBankAccount',
+                'currency' => 'GBP',
+                'status' => 'active',
+            ]);
+
+        $transaction =
+            BankTransaction::create([
+                'bank_account_id' => $account->id,
+                'client_id' => $client->id,
+                'transaction_date' => '2026-01-16',
+                'amount' => 500,
+                'description' => 'HUMAN CONFIRMED CLIENT LTD',
+                'transaction_type' => 'customer_payment',
+                'match_status' => 'suggested',
+                'match_confidence' => 100,
+                'matched_by' => $user->id,
+                'matched_at' => now(),
+                'source_type' => 'freeagent',
+                'transaction_hash' => hash(
+                    'sha256',
+                    'human-attributed-suggestion'
+                ),
+                'metadata' => [
+                    'freeagent_unexplained_amount' => 500,
+                ],
+            ]);
+
+        $truth =
+            app(
+                BankTransactionDeduplicationService::class
+            )->current();
+
+        $this->assertCount(
+            1,
+            $truth
+        );
+
+        $canonical =
+            $truth->sole();
+
+        $this->assertSame(
+            $transaction->id,
+            $canonical->id
+        );
+
+        $this->assertSame(
+            $client->id,
+            $canonical->clientId
+        );
+
+        $this->assertSame(
+            500.0,
+            $canonical->amount
+        );
+    }
+
     private function transaction(
         string $accountId,
         string $clientId,
@@ -228,7 +349,7 @@ class BankTransactionDeduplicationServiceTest extends TestCase
 
             'transaction_type' => 'customer_payment',
 
-            'match_status' => 'suggested',
+            'match_status' => 'reconciled',
 
             'match_confidence' => 100,
 

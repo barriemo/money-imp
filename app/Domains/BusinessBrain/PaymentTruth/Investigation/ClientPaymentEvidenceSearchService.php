@@ -215,9 +215,11 @@ final class ClientPaymentEvidenceSearchService
              * already canonical cash and is therefore not a
              * hidden payment candidate.
              *
-             * A machine-generated suggestion remains provisional.
-             * It can support further investigation, but must not
-             * silently become canonical client cash.
+             * An unattributed suggestion remains provisional,
+             * including legacy suggestions created before explicit
+             * automated_candidate provenance existed. It can support
+             * further investigation, but must not silently become
+             * canonical client cash.
              */
             if (
                 $this->isCanonicalClientAttribution(
@@ -972,11 +974,14 @@ final class ClientPaymentEvidenceSearchService
             return false;
         }
 
-        return ! $this->isMachineSuggestedClientAttribution(
-            transaction: $transaction,
+        if (
+            $transaction->match_status === 'suggested'
+            && $transaction->matched_by === null
+        ) {
+            return false;
+        }
 
-            clientId: $clientId
-        );
+        return true;
     }
 
     private function isMachineSuggestedClientAttribution(

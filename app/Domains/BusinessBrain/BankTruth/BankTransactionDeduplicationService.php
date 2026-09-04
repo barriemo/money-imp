@@ -14,7 +14,7 @@ class BankTransactionDeduplicationService
             ->where('amount', '>', 0)
             ->get()
             ->filter(
-                fn (BankTransaction $transaction) => ! $this->isMachineSuggestedAttribution(
+                fn (BankTransaction $transaction) => ! $this->isUnattributedSuggestedClientAttribution(
                     $transaction
                 )
             )
@@ -64,17 +64,21 @@ class BankTransactionDeduplicationService
         );
     }
 
-    private function isMachineSuggestedAttribution(
+    private function isUnattributedSuggestedClientAttribution(
         BankTransaction $transaction
     ): bool {
+        /*
+         * Suggested client attribution is provisional unless an
+         * attributable human decision exists.
+         *
+         * Modern machine suggestions carry automated_candidate
+         * provenance, but legacy suggestions pre-date that marker.
+         * Missing historical provenance must not silently promote
+         * an unattributed suggestion into canonical client cash.
+         */
         return $transaction->client_id !== null
             && $transaction->match_status === 'suggested'
-            && $transaction->matched_by === null
-            && (
-                $transaction->metadata[
-                    'reconciliation_provenance'
-                ] ?? null
-            ) === 'automated_candidate';
+            && $transaction->matched_by === null;
     }
 
     private function sourceConfidence(
