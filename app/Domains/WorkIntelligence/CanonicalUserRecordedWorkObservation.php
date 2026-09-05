@@ -8,11 +8,11 @@ use InvalidArgumentException;
 final readonly class CanonicalUserRecordedWorkObservation
 {
     public const TRUTH_BOUNDARY =
-        'User identity and WorkLog records are recorded system evidence. A User record does not by itself establish employment or team membership. Recorded work-log time does not establish contracted capacity, available capacity, utilisation, allocation, billability, recoverability, performance, cost, margin or priority. No recorded work does not prove inactivity or availability.';
+        'WorkLog.user_id is recorded attribution to an existing User, not server-verified proof that the attributed user performed the work. At least one authenticated write path accepts a caller-selected existing User id. A User record does not by itself establish employment or team membership. Recorded work-log time does not establish contracted capacity, available capacity, utilisation, allocation, billability, recoverability, performance, cost, margin or priority. No recorded work attributed to a user does not prove inactivity or availability.';
 
     public function __construct(
-        public int $userId,
-        public string $userName,
+        public int $attributedUserId,
+        public string $attributedUserName,
         public int $recordedWorkLogCount,
         public int $recordedMinutes,
         public int $distinctRecordedClientCount,
@@ -21,13 +21,13 @@ final readonly class CanonicalUserRecordedWorkObservation
         public string $truthBoundary,
         public CarbonImmutable $observedAt,
     ) {
-        if ($this->userId <= 0) {
+        if ($this->attributedUserId <= 0) {
             throw new InvalidArgumentException(
                 'Canonical user recorded-work observation requires a positive user id.'
             );
         }
 
-        if (trim($this->userName) === '') {
+        if (trim($this->attributedUserName) === '') {
             throw new InvalidArgumentException(
                 'Canonical user recorded-work observation requires a user name.'
             );

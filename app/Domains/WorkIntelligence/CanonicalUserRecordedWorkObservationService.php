@@ -29,9 +29,9 @@ final class CanonicalUserRecordedWorkObservationService
                 ->filter();
 
         return new CanonicalUserRecordedWorkObservation(
-            userId: (int) $user->id,
+            attributedUserId: (int) $user->id,
 
-            userName: $user->name,
+            attributedUserName: $user->name,
 
             recordedWorkLogCount: $logs->count(),
 

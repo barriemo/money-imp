@@ -76,12 +76,12 @@ class CanonicalUserRecordedWorkObservationServiceTest extends TestCase
 
         $this->assertSame(
             (int) $user->id,
-            $observation->userId
+            $observation->attributedUserId
         );
 
         $this->assertSame(
             'Recorded Work User',
-            $observation->userName
+            $observation->attributedUserName
         );
 
         $this->assertSame(
@@ -117,6 +117,104 @@ class CanonicalUserRecordedWorkObservationServiceTest extends TestCase
         $this->assertSame(
             CanonicalUserRecordedWorkObservation::TRUTH_BOUNDARY,
             $observation->truthBoundary
+        );
+    }
+
+    public function test_user_id_is_recorded_attribution_not_verified_authenticated_actor_identity(): void
+    {
+        $authenticatedUser =
+            User::factory()->create([
+                'name' => 'Authenticated User',
+            ]);
+
+        $attributedUser =
+            User::factory()->create([
+                'name' => 'Attributed User',
+            ]);
+
+        $client =
+            Client::factory()->create([
+                'status' => 'active',
+            ]);
+
+        $response =
+            $this
+                ->actingAs(
+                    $authenticatedUser
+                )
+                ->post(
+                    route(
+                        'work-log.store'
+                    ),
+                    [
+                        'client_id' => $client->id,
+
+                        'user_id' => $attributedUser->id,
+
+                        'description' => 'Caller attributed this work to another user',
+
+                        'minutes' => 30,
+
+                        'performed_at' => '2026-09-04',
+
+                        'billing_hint' => 'billable',
+                    ]
+                );
+
+        $response
+            ->assertRedirect();
+
+        $attributedObservation =
+            app(
+                CanonicalUserRecordedWorkObservationService::class
+            )->forUser(
+                $attributedUser
+            );
+
+        $authenticatedObservation =
+            app(
+                CanonicalUserRecordedWorkObservationService::class
+            )->forUser(
+                $authenticatedUser
+            );
+
+        $this->assertSame(
+            1,
+            $attributedObservation->recordedWorkLogCount
+        );
+
+        $this->assertSame(
+            30,
+            $attributedObservation->recordedMinutes
+        );
+
+        $this->assertSame(
+            (int) $attributedUser->id,
+            $attributedObservation->attributedUserId
+        );
+
+        $this->assertSame(
+            'Attributed User',
+            $attributedObservation->attributedUserName
+        );
+
+        $this->assertSame(
+            0,
+            $authenticatedObservation->recordedWorkLogCount
+        );
+
+        $this->assertStringContainsString(
+            'not server-verified proof that the attributed user performed the work',
+            strtolower(
+                $attributedObservation->truthBoundary
+            )
+        );
+
+        $this->assertStringContainsString(
+            'caller-selected existing user id',
+            strtolower(
+                $attributedObservation->truthBoundary
+            )
         );
     }
 
@@ -158,7 +256,7 @@ class CanonicalUserRecordedWorkObservationServiceTest extends TestCase
         );
 
         $this->assertStringContainsString(
-            'no recorded work does not prove inactivity or availability',
+            'no recorded work attributed to a user does not prove inactivity or availability',
             strtolower(
                 $observation->truthBoundary
             )
